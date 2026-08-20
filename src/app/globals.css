@@ -1,0 +1,115 @@
+/* NIESV Ebonyi MCPD Portal — canonical tokens.
+   This is the single source of truth. Every screen imports it.
+   Three competing palettes appeared across the four export batches;
+   these are the correct values. Do not redefine them per file. */
+
+:root {
+  /* Channel triplets so Tailwind opacity modifiers work (bg-ink/70 etc).
+     Single source of truth — the hex aliases below are derived, not parallel. */
+  --ink-rgb:    16 30 46;
+  --green-rgb:  11 110 79;
+  --gold-rgb:  176 138 46;
+  --paper-rgb: 247 248 246;
+  --line-rgb:  221 226 221;
+  --muted-rgb:  92 102 96;
+  --danger-rgb:186 26 26;
+  --white-rgb: 255 255 255;
+
+  --ink:    rgb(var(--ink-rgb));
+  --green:  rgb(var(--green-rgb));
+  --gold:   rgb(var(--gold-rgb));
+  --paper:  rgb(var(--paper-rgb));
+  --line:   rgb(var(--line-rgb));
+  --muted:  rgb(var(--muted-rgb));
+  --danger: rgb(var(--danger-rgb));
+  --white:  rgb(var(--white-rgb));
+
+  --radius: 4px;
+
+  --font-display: var(--font-display-src), Georgia, serif;
+  --font-body: var(--font-body-src), system-ui, sans-serif;
+  --font-mono: var(--font-mono-src), ui-monospace, monospace;
+}
+
+/* ---- Credential Strip: the signature element ----
+   One implementation, used on registration success, retrieve passcode,
+   photo card, join online and certificate. */
+
+.credential-strip {
+  position: relative;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.credential-strip .gold-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--gold);
+}
+
+.credential-strip .code {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 34px;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+
+/* The notches are what make this read as a detachable stub
+   rather than a bordered box. They were missing from every
+   variant in the first export. */
+.credential-strip .notch {
+  position: absolute;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.credential-strip .notch.left  { left: -8px; }
+.credential-strip .notch.right { right: -8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .credential-strip .stagger-fade * { animation: none !important; }
+}
+
+/* ---- Focus ring: every interactive element, no exceptions ---- */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.15; }
+}
+
+@layer components {
+  .container-content { max-width: 1120px; margin-inline: auto; padding-inline: 20px; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded px-5 min-h-[44px] text-[15px] font-medium transition-colors; }
+  .btn-primary { @apply btn bg-green text-white hover:opacity-90; }
+  .btn-secondary { @apply btn border border-line bg-white text-ink hover:bg-paper; }
+  .btn-onink { @apply btn border border-white/40 text-white hover:bg-white/10; }
+  .field { @apply w-full rounded border border-line bg-white px-3 min-h-[44px] text-[15px] text-ink placeholder:text-muted; }
+  .field-mono { @apply field font-mono tracking-wider uppercase; }
+  .label { @apply block text-[14px] font-semibold text-ink mb-1.5; }
+  .help { @apply mt-1.5 text-[13px] text-muted; }
+  .mono { font-family: var(--font-mono); }
+  .card { @apply bg-white border border-line rounded; }
+  .rule { @apply border-t border-line; }
+}
