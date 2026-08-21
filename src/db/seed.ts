@@ -1,8 +1,7 @@
 import "./env";
 import { db, categories, eventSettings } from "./index";
 import { event } from "../lib/event";
-import { db, categories, eventSettings } from "./index";
-import { event } from "../lib/event";
+
 
 /**
  * Seeds categories and event settings from lib/event.ts.
