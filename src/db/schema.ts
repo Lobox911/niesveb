@@ -182,3 +182,28 @@ export const eventSettings = pgTable("event_settings", {
 export type Registration = typeof registrations.$inferSelect;
 export type NewRegistration = typeof registrations.$inferInsert;
 export type Category = typeof categories.$inferSelect;
+
+/** Hero slides — one per upcoming event. The home hero renders these as a
+ *  slider; with none published it falls back to the static theme hero, so
+ *  the page never depends on a slide existing. */
+export const heroSlides = pgTable(
+  "hero_slides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    eyebrow: text("eyebrow"),              // "MCPD Seminar 2026 / Hybrid"
+    title: text("title").notNull(),
+    dateLine: text("date_line"),           // free text: "13th August, 2026"
+    venueLine: text("venue_line"),
+    ctaLabel: text("cta_label"),
+    ctaHref: text("cta_href"),
+    imageUrl: text("image_url"),           // Vercel Blob
+    imagePath: text("image_path"),         // pathname, for store migration
+    imageAlt: text("image_alt"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    published: boolean("published").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("hero_slides_published_idx").on(t.published, t.sortOrder)],
+);
+
+export type HeroSlide = typeof heroSlides.$inferSelect;

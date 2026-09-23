@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { db, eventSettings, categories } from "@/db";
+import { asc } from "drizzle-orm";
+import { db, eventSettings, categories, heroSlides } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import EventSettingsForm from "./EventSettingsForm";
 import FeeTable from "./FeeTable";
 import FlyerUpload from "./FlyerUpload";
+import HeroSlides from "./HeroSlides";
 
 export const metadata: Metadata = { title: "Event settings" };
 
@@ -12,9 +14,10 @@ export default async function EventPage() {
   const officer = await requireOfficer();
   if (officer.role !== "admin") redirect("/admin");
 
-  const [settingsRows, cats] = await Promise.all([
+  const [settingsRows, cats, slides] = await Promise.all([
     db.select().from(eventSettings).limit(1),
     db.select().from(categories).orderBy(categories.sortOrder),
+    db.select().from(heroSlides).orderBy(asc(heroSlides.sortOrder)),
   ]);
   const s = settingsRows[0];
 
@@ -46,6 +49,8 @@ export default async function EventPage() {
           contactEmail: s?.contactEmail ?? "",
         }}
       />
+
+      <HeroSlides rows={slides} />
 
       <FlyerUpload current={s?.flyerUrl ?? null} alt={s?.flyerAlt ?? null} />
 

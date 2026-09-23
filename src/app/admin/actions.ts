@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import {
-  db, registrations, attendance, auditLog, eventSettings, categories,
+  db, registrations, attendance, auditLog, eventSettings, categories, heroSlides,
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
@@ -228,6 +228,73 @@ export async function removeFlyer() {
     .where(eq(eventSettings.id, 1));
 
   await audit(officer.id, "remove_flyer", "event_settings", "1");
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+/* ---------- hero slides ---------- */
+
+export async function saveHeroSlide(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the hero." };
+
+  const id = String(formData.get("id") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return { error: "A slide needs a title." };
+
+  const values: Record<string, unknown> = {
+    eyebrow: String(formData.get("eyebrow") ?? "").trim() || null,
+    title,
+    dateLine: String(formData.get("dateLine") ?? "").trim() || null,
+    venueLine: String(formData.get("venueLine") ?? "").trim() || null,
+    ctaLabel: String(formData.get("ctaLabel") ?? "").trim() || null,
+    ctaHref: String(formData.get("ctaHref") ?? "").trim() || null,
+    sortOrder: Number(formData.get("sortOrder") ?? 0) || 0,
+    published: formData.get("published") === "on",
+  };
+
+  const image = formData.get("image");
+  if (image instanceof File && image.size > 0) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(image.type)) {
+      return { error: "The background must be a JPG, PNG or WebP." };
+    }
+    if (image.size > 5 * 1024 * 1024) {
+      return { error: "That image is larger than 5MB. Export it smaller and try again." };
+    }
+    const safe = image.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
+    const blob = await put(`hero/${Date.now()}-${safe}`, image, { access: "public", addRandomSuffix: false });
+    values.imageUrl = blob.url;
+    values.imagePath = blob.pathname;
+    values.imageAlt = String(formData.get("imageAlt") ?? "").trim() || title;
+  }
+
+  if (id) {
+    await db.update(heroSlides).set(values).where(eq(heroSlides.id, id));
+    await audit(officer.id, "update_hero_slide", "hero_slides", id);
+  } else {
+    const [row] = await db
+      .insert(heroSlides)
+      .values(values as typeof heroSlides.$inferInsert)
+      .returning({ id: heroSlides.id });
+    await audit(officer.id, "create_hero_slide", "hero_slides", row?.id ?? "");
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+export async function deleteHeroSlide(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the hero." };
+
+  const rows = await db.select().from(heroSlides).where(eq(heroSlides.id, id)).limit(1);
+  const url = rows[0]?.imageUrl;
+  if (url) { try { await del(url); } catch { /* row should clear regardless */ } }
+
+  await db.delete(heroSlides).where(eq(heroSlides.id, id));
+  await audit(officer.id, "delete_hero_slide", "hero_slides", id);
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true };

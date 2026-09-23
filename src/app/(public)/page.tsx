@@ -1,10 +1,15 @@
 import Link from "next/link";
-import { db, eventSettings } from "@/db";
+import { asc, eq } from "drizzle-orm";
+import { db, eventSettings, heroSlides } from "@/db";
+import HeroSlider from "@/components/HeroSlider";
 import CopyButton from "@/components/CopyButton";
 import { event, formatNaira } from "@/lib/event";
 
 export default async function Home() {
-  const settingsRows = await db.select().from(eventSettings).limit(1);
+  const [settingsRows, slides] = await Promise.all([
+    db.select().from(eventSettings).limit(1),
+    db.select().from(heroSlides).where(eq(heroSlides.published, true)).orderBy(asc(heroSlides.sortOrder)),
+  ]);
   const flyer = settingsRows[0];
 
   const jsonLd = {
@@ -29,42 +34,48 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* 1. HERO — one static composition, not a carousel */}
-      <section className="relative overflow-hidden bg-ink">
-        <div className="container-content relative z-10 py-16 md:py-24">
-          <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">
-            {event.eventTitle} / Hybrid
-          </p>
-          <h1 className="mt-5 max-w-[18ch] text-[30px] leading-[1.15] text-white md:text-[46px]">
-            {event.theme}
-          </h1>
+      {/* 1. HERO — a slider when the branch has published upcoming events,
+           otherwise the static theme hero. The fallback matters: the page must
+           never depend on a slide existing. */}
+      {slides.length > 0 ? (
+        <HeroSlider slides={slides} />
+      ) : (
+        <section className="relative overflow-hidden bg-ink">
+          <div className="container-content relative z-10 py-16 md:py-24">
+            <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">
+              {event.eventTitle} / Hybrid
+            </p>
+            <h1 className="mt-5 max-w-[18ch] text-[30px] leading-[1.15] text-white md:text-[46px]">
+              {event.theme}
+            </h1>
 
-          <dl className="mt-9 max-w-[420px]">
-            {[
-              ["Date", event.date],
-              ["Time", event.time],
-              ["Venue", event.venue],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between gap-6 border-b border-gold/30 py-3">
-                <dt className="mono text-[13px] uppercase tracking-wider text-white/60">{k}</dt>
-                <dd className="mono text-[15px] text-white">{v}</dd>
-              </div>
-            ))}
-          </dl>
+            <dl className="mt-9 max-w-[420px]">
+              {[
+                ["Date", event.date],
+                ["Time", event.time],
+                ["Venue", event.venue],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-6 border-b border-gold/30 py-3">
+                  <dt className="mono text-[13px] uppercase tracking-wider text-white/60">{k}</dt>
+                  <dd className="mono text-[15px] text-white">{v}</dd>
+                </div>
+              ))}
+            </dl>
 
-          <div className="mt-9 flex flex-wrap gap-3">
-            <Link href="/register" className="btn-primary">Register now</Link>
-            <Link href="/join" className="btn-onink">Join online</Link>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link href="/register" className="btn-primary">Register now</Link>
+              <Link href="/join" className="btn-onink">Join online</Link>
+            </div>
           </div>
-        </div>
 
-        <span
-          aria-hidden
-          className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 translate-x-1/4 select-none font-[var(--font-display)] text-[280px] leading-none text-white/[0.06] lg:block"
-        >
-          EB
-        </span>
-      </section>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 translate-x-1/4 select-none font-[var(--font-display)] text-[280px] leading-none text-white/[0.06] lg:block"
+          >
+            EB
+          </span>
+        </section>
+      )}
 
       {/* 2. AT A GLANCE — the four facts every phone call asks about */}
       <section className="container-content -mt-8 relative z-20">
