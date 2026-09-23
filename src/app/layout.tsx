@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter_Tight, IBM_Plex_Mono } from "next/font/google";
+import { Source_Serif_4, Inter_Tight, IBM_Plex_Mono } from "next/font/google";
 import { event } from "@/lib/event";
 import "./globals.css";
 
 /**
- * Fraunces ships a WONK axis that swaps in deliberately eccentric glyph
- * shapes (the odd "g", the strange "ffi") and defaults to ON.
+ * Display face: Source Serif 4.
  *
- * To control WONK/SOFT/opsz the font must be loaded as fully variable —
- * next/font rejects `axes` alongside a fixed `weight`. So no weight here;
- * weight is set in globals.css instead.
+ * Previously Fraunces, which ships a WONK axis of deliberately eccentric
+ * glyph shapes — the splayed "g", the odd "ffi" — that read as distortion
+ * rather than character on an institutional site. Source Serif has no such
+ * axes: it is a straightforward text serif with the authority this needs
+ * and none of the quirk.
  */
-const display = Fraunces({
+const display = Source_Serif_4({
   subsets: ["latin"],
-  axes: ["SOFT", "WONK", "opsz"],
+  weight: ["600", "700"],
   variable: "--font-display-src",
   display: "swap",
 });

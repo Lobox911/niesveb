@@ -24,7 +24,7 @@ export default function LoginForm() {
       </button>
 
       <p className="help mt-4">
-        Officer accounts are created by the branch administrator. There is no self signup.
+        Accounts are created by the branch administrator. There is no self signup.
       </p>
     </form>
   );

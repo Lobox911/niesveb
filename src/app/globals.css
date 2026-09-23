@@ -97,28 +97,14 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Fraunces ships a WONK axis that swaps in deliberately eccentric glyph
-     shapes — the odd "g", the strange "ffi" — and it defaults to ON, which
-     is what made "Officer sign in" look distorted.
-
-     WONK 0  turns those alternates off.
-     SOFT 0  keeps terminals crisp rather than rounded.
-     opsz 40 is the display optical size. Without it the browser picks a
-             text-size default that looks wrong at heading sizes.
-
-     The axes must also be requested in layout.tsx via
-     axes: ["SOFT", "WONK", "opsz"], or these settings do nothing. */
+  /* Source Serif 4 needs no variation-settings — it has no quirk axes.
+     The optical-size tuning and WONK override that Fraunces required are
+     gone, which is the point of the swap. */
   h1, h2, h3 {
     font-family: var(--font-display);
     font-weight: 600;
     line-height: 1.15;
-    letter-spacing: -0.015em;
-    font-variation-settings: "WONK" 0, "SOFT" 0, "opsz" 40;
-  }
-
-  /* Smaller headings want a lower optical size. */
-  h3 {
-    font-variation-settings: "WONK" 0, "SOFT" 0, "opsz" 20;
+    letter-spacing: -0.01em;
   }
 }
 
