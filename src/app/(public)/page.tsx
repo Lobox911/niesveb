@@ -60,7 +60,7 @@ export default async function Home() {
 
         <span
           aria-hidden
-          className="pointer-events-none absolute right-[-40px] top-1/2 hidden -translate-y-1/2 select-none font-[var(--font-display)] text-[280px] leading-none text-white/[0.06] lg:block"
+          className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 translate-x-1/4 select-none font-[var(--font-display)] text-[280px] leading-none text-white/[0.06] lg:block"
         >
           EB
         </span>
@@ -83,9 +83,13 @@ export default async function Home() {
         </dl>
       </section>
 
-      {/* 3. ABOUT */}
+      {/* 3. ABOUT — the flyer sits here as the right-hand column rather than
+           at the foot of the page. It is the event's own summary (theme, date,
+           venue, fees in one image) and the thing people forward to colleagues,
+           so it belongs high on the page, not below the advert rates. It also
+           fills a column that was mostly dead space. */}
       <section className="container-content py-14 md:py-24">
-        <div className="grid gap-10 md:grid-cols-[1fr_260px]">
+        <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
           <div className="max-w-prose">
             <h2 className="text-[26px]">About the seminar</h2>
             <p className="mt-4 text-[17px] leading-relaxed text-muted">
@@ -98,12 +102,11 @@ export default async function Home() {
               Attendance is open to Fellows, Members, probationers and students of
               the Institution, as well as allied professionals and the general public.
             </p>
-          </div>
-          <aside className="w-full">
-            <h3 className="mono text-[12px] uppercase tracking-wider text-muted">
+
+            <h3 className="mono mt-10 text-[12px] uppercase tracking-wider text-muted">
               What you leave with
             </h3>
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
               {["MCPD credit units", "E-certificate of participation", "Seminar brochure"].map((x) => (
                 <li key={x} className="flex gap-3 text-[15px] text-ink">
                   <span className="mono text-gold" aria-hidden>/</span>
@@ -111,7 +114,33 @@ export default async function Home() {
                 </li>
               ))}
             </ul>
-          </aside>
+          </div>
+
+          {flyer?.flyerUrl && (
+            <aside>
+              <h3 className="mono text-[12px] uppercase tracking-wider text-muted">
+                Seminar flyer
+              </h3>
+              {flyer.flyerUrl.toLowerCase().endsWith(".pdf") ? (
+                <a href={flyer.flyerUrl} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
+                  Open the flyer (PDF)
+                </a>
+              ) : (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={flyer.flyerUrl}
+                    alt={flyer.flyerAlt ?? "Seminar flyer"}
+                    className="mt-4 w-full rounded border border-line"
+                  />
+                  <a href={flyer.flyerUrl} download className="btn-secondary mt-4 w-full">
+                    Download the flyer
+                  </a>
+                  <p className="help">Share this with colleagues who have not registered yet.</p>
+                </>
+              )}
+            </aside>
+          )}
         </div>
       </section>
 
@@ -204,7 +233,7 @@ export default async function Home() {
       {/* 7. ADVERT RATES */}
       <section className="container-content py-14 md:py-20">
         <h2 className="text-[26px]">Brochure adverts and goodwill messages</h2>
-        <div className="mt-6 max-w-[720px] overflow-x-auto">
+        <div className="mt-6 overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <caption className="sr-only">Brochure advert placements and rates</caption>
             <thead>
@@ -246,39 +275,6 @@ export default async function Home() {
             <Link href="/programme" className="mt-6 inline-block text-[15px] text-green underline underline-offset-4">
               View full programme
             </Link>
-          </div>
-        </section>
-      )}
-
-      {/* 8b. SEMINAR FLYER — the artwork the branch already circulates on
-           WhatsApp, shown here rather than hidden behind a download link
-           the way the reference site does it. */}
-      {flyer?.flyerUrl && (
-        <section className="container-content py-14 md:py-20">
-          <h2 className="text-[26px]">Seminar flyer</h2>
-          <div className="mt-6 flex flex-col items-start gap-6 md:flex-row">
-            {flyer.flyerUrl.toLowerCase().endsWith(".pdf") ? (
-              <a href={flyer.flyerUrl} target="_blank" rel="noreferrer" className="btn-primary">
-                Open the flyer (PDF)
-              </a>
-            ) : (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={flyer.flyerUrl}
-                  alt={flyer.flyerAlt ?? "Seminar flyer"}
-                  className="w-full max-w-[420px] rounded border border-line"
-                />
-                <div>
-                  <p className="max-w-prose text-[15px] leading-relaxed text-muted">
-                    Share this with colleagues who have not registered yet.
-                  </p>
-                  <a href={flyer.flyerUrl} download className="btn-secondary mt-4">
-                    Download the flyer
-                  </a>
-                </div>
-              </>
-            )}
           </div>
         </section>
       )}
