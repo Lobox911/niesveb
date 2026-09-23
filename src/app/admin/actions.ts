@@ -7,6 +7,7 @@ import {
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
+import { put, del } from "@vercel/blob";
 
 /* ---------- auth ---------- */
 
@@ -165,6 +166,68 @@ export async function updateCategoryFee(id: string, feeNaira: number, units: num
   await db.update(categories).set({ feeKobo: Math.round(feeNaira * 100), units }).where(eq(categories.id, id));
   await audit(officer.id, "update_category_fee", "categories", id, { feeNaira, units });
 
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+/* ---------- seminar flyer ---------- */
+
+export async function uploadFlyer(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the flyer." };
+
+  const file = formData.get("flyer");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image or PDF to upload." };
+
+  const ALLOWED = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  if (!ALLOWED.includes(file.type)) {
+    return { error: "The flyer must be a JPG, PNG, WebP or PDF." };
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    return { error: "That file is larger than 8MB. Export it at a smaller size and try again." };
+  }
+
+  const stamp = Date.now();
+  const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
+
+  // addRandomSuffix keeps old uploads reachable; the row points at the newest.
+  const blob = await put(`flyers/${stamp}-${safe}`, file, {
+    access: "public",
+    addRandomSuffix: false,
+  });
+
+  const alt = String(formData.get("flyerAlt") ?? "").trim() || "Seminar flyer";
+
+  await db
+    .update(eventSettings)
+    .set({ flyerUrl: blob.url, flyerPath: blob.pathname, flyerAlt: alt, updatedAt: new Date() })
+    .where(eq(eventSettings.id, 1));
+
+  await audit(officer.id, "upload_flyer", "event_settings", "1", { pathname: blob.pathname });
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true, url: blob.url };
+}
+
+export async function removeFlyer() {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the flyer." };
+
+  const rows = await db.select().from(eventSettings).where(eq(eventSettings.id, 1)).limit(1);
+  const current = rows[0]?.flyerUrl;
+
+  if (current) {
+    // Best effort — if the blob is already gone the row should still clear.
+    try { await del(current); } catch { /* ignore */ }
+  }
+
+  await db
+    .update(eventSettings)
+    .set({ flyerUrl: null, flyerPath: null, flyerAlt: null, updatedAt: new Date() })
+    .where(eq(eventSettings.id, 1));
+
+  await audit(officer.id, "remove_flyer", "event_settings", "1");
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true };

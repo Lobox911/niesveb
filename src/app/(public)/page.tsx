@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { db, eventSettings } from "@/db";
 import CopyButton from "@/components/CopyButton";
 import { event, formatNaira } from "@/lib/event";
 
-export default function Home() {
+export default async function Home() {
+  const settingsRows = await db.select().from(eventSettings).limit(1);
+  const flyer = settingsRows[0];
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -242,6 +246,39 @@ export default function Home() {
             <Link href="/programme" className="mt-6 inline-block text-[15px] text-green underline underline-offset-4">
               View full programme
             </Link>
+          </div>
+        </section>
+      )}
+
+      {/* 8b. SEMINAR FLYER — the artwork the branch already circulates on
+           WhatsApp, shown here rather than hidden behind a download link
+           the way the reference site does it. */}
+      {flyer?.flyerUrl && (
+        <section className="container-content py-14 md:py-20">
+          <h2 className="text-[26px]">Seminar flyer</h2>
+          <div className="mt-6 flex flex-col items-start gap-6 md:flex-row">
+            {flyer.flyerUrl.toLowerCase().endsWith(".pdf") ? (
+              <a href={flyer.flyerUrl} target="_blank" rel="noreferrer" className="btn-primary">
+                Open the flyer (PDF)
+              </a>
+            ) : (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={flyer.flyerUrl}
+                  alt={flyer.flyerAlt ?? "Seminar flyer"}
+                  className="w-full max-w-[420px] rounded border border-line"
+                />
+                <div>
+                  <p className="max-w-prose text-[15px] leading-relaxed text-muted">
+                    Share this with colleagues who have not registered yet.
+                  </p>
+                  <a href={flyer.flyerUrl} download className="btn-secondary mt-4">
+                    Download the flyer
+                  </a>
+                </div>
+              </>
+            )}
           </div>
         </section>
       )}

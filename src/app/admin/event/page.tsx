@@ -4,6 +4,7 @@ import { db, eventSettings, categories } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import EventSettingsForm from "./EventSettingsForm";
 import FeeTable from "./FeeTable";
+import FlyerUpload from "./FlyerUpload";
 
 export const metadata: Metadata = { title: "Event settings" };
 
@@ -45,6 +46,8 @@ export default async function EventPage() {
           contactEmail: s?.contactEmail ?? "",
         }}
       />
+
+      <FlyerUpload current={s?.flyerUrl ?? null} alt={s?.flyerAlt ?? null} />
 
       <FeeTable
         rows={cats.map((c) => ({

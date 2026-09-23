@@ -164,9 +164,20 @@ export const eventSettings = pgTable("event_settings", {
   meetingUrl: text("meeting_url"),
   meetingId: text("meeting_id"),
   supportWhatsapp: text("support_whatsapp"),
+
+  /* Seminar flyer, stored in Vercel Blob.
+     flyerUrl is what the page renders. flyerPath is the blob pathname,
+     kept so the files can be re-uploaded to a different store at handover
+     without rewriting rows — blob files cannot be transferred between
+     accounts, only re-uploaded. */
+  flyerUrl: text("flyer_url"),
+  flyerPath: text("flyer_path"),
+  flyerAlt: text("flyer_alt"),
   contactEmail: text("contact_email"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+
 
 export type Registration = typeof registrations.$inferSelect;
 export type NewRegistration = typeof registrations.$inferInsert;

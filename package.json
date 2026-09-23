@@ -8,13 +8,14 @@
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
-  "db:push": "drizzle-kit push",
-  "db:studio": "drizzle-kit studio",
-  "db:seed": "tsx src/db/seed.ts",
-  "officer:add": "tsx src/db/add-officer.ts"
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/db/seed.ts",
+    "officer:add": "tsx src/db/add-officer.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.8.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "next": "^16.3.1",
