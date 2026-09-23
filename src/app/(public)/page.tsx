@@ -38,7 +38,11 @@ export default async function Home() {
            otherwise the static theme hero. The fallback matters: the page must
            never depend on a slide existing. */}
       {slides.length > 0 ? (
-        <HeroSlider slides={slides} />
+        <HeroSlider
+          slides={slides}
+          fallbackDate={flyer?.startsAt ? new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "long", year: "numeric" }).format(flyer.startsAt) : event.date}
+          fallbackVenue={flyer?.venue ?? event.venue}
+        />
       ) : (
         <section className="relative overflow-hidden bg-ink">
           <div className="container-content relative z-10 py-16 md:py-24">

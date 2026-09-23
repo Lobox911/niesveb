@@ -23,7 +23,15 @@ export type Slide = {
  * swipe works on touch, and a single slide renders without any controls at
  * all rather than showing a one-dot pager.
  */
-export default function HeroSlider({ slides }: { slides: Slide[] }) {
+export default function HeroSlider({
+  slides,
+  fallbackDate,
+  fallbackVenue,
+}: {
+  slides: Slide[];
+  fallbackDate?: string | null;
+  fallbackVenue?: string | null;
+}) {
   const [i, setI] = useState(0);
   const touchX = useRef<number | null>(null);
   const many = slides.length > 1;
@@ -41,9 +49,14 @@ export default function HeroSlider({ slides }: { slides: Slide[] }) {
   const s = slides[i];
   if (!s) return null;
 
+  // A slide with no date or venue falls back to the event settings, so the
+  // hero is never bare just because someone left a field blank.
+  const dateLine = s.dateLine || fallbackDate || null;
+  const venueLine = s.venueLine || fallbackVenue || null;
+
   return (
     <section
-      className="relative overflow-hidden bg-ink"
+      className="relative flex min-h-[420px] items-center overflow-hidden bg-ink md:min-h-[480px]"
       aria-roledescription={many ? "carousel" : undefined}
       aria-label={many ? "Upcoming events" : undefined}
       onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
@@ -64,14 +77,21 @@ export default function HeroSlider({ slides }: { slides: Slide[] }) {
             alt={s.imageAlt ?? ""}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          {/* The scrim is what keeps the text legible whatever image the
-              branch uploads. Without it a bright photo makes white text
-              unreadable and there is no way for them to know in advance. */}
-          <div className="absolute inset-0 bg-ink/75" aria-hidden />
+          {/* A left-to-right gradient rather than a flat overlay: dark where
+              the text sits, clearing over the right of the frame so the image
+              itself stays visible. A flat scrim would dim the whole photo;
+              none at all would make white text unreadable on a bright sky,
+              and the branch cannot know in advance which they will upload. */}
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-ink via-ink/85 to-ink/35"
+            aria-hidden
+          />
+          {/* Floor of contrast for the very brightest images. */}
+          <div className="absolute inset-0 bg-ink/25" aria-hidden />
         </>
       )}
 
-      <div className="container-content relative z-10 py-16 md:py-24">
+      <div className="container-content relative z-10 w-full py-16 md:py-20">
         <div aria-live="polite" aria-atomic="true">
           {s.eyebrow && (
             <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">{s.eyebrow}</p>
@@ -80,18 +100,18 @@ export default function HeroSlider({ slides }: { slides: Slide[] }) {
             {s.title}
           </h1>
 
-          {(s.dateLine || s.venueLine) && (
+          {(dateLine || venueLine) && (
             <dl className="mt-9 max-w-[420px]">
-              {s.dateLine && (
+              {dateLine && (
                 <div className="flex justify-between gap-6 border-b border-gold/30 py-3">
                   <dt className="mono text-[13px] uppercase tracking-wider text-white/60">Date</dt>
-                  <dd className="mono text-[15px] text-white">{s.dateLine}</dd>
+                  <dd className="mono text-[15px] text-white">{dateLine}</dd>
                 </div>
               )}
-              {s.venueLine && (
+              {venueLine && (
                 <div className="flex justify-between gap-6 border-b border-gold/30 py-3">
                   <dt className="mono text-[13px] uppercase tracking-wider text-white/60">Venue</dt>
-                  <dd className="mono text-[15px] text-white">{s.venueLine}</dd>
+                  <dd className="mono text-[15px] text-white">{venueLine}</dd>
                 </div>
               )}
             </dl>
