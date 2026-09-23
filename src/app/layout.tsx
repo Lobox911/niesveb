@@ -5,13 +5,14 @@ import "./globals.css";
 
 /**
  * Fraunces ships a WONK axis that swaps in deliberately eccentric glyph
- * shapes (the odd "g", the strange "ffi") and defaults to ON. It also has
- * SOFT and an optical-size axis. next/font can only request the axes; the
- * values are set in globals.css via font-variation-settings.
+ * shapes (the odd "g", the strange "ffi") and defaults to ON.
+ *
+ * To control WONK/SOFT/opsz the font must be loaded as fully variable —
+ * next/font rejects `axes` alongside a fixed `weight`. So no weight here;
+ * weight is set in globals.css instead.
  */
 const display = Fraunces({
   subsets: ["latin"],
-  weight: ["600"],
   axes: ["SOFT", "WONK", "opsz"],
   variable: "--font-display-src",
   display: "swap",
