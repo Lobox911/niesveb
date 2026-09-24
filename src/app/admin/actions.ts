@@ -561,3 +561,49 @@ export async function uploadHeroBackground(formData: FormData) {
   revalidatePath("/admin/event");
   return { ok: true };
 }
+
+/* ---------- inner page banner ---------- */
+
+export async function uploadBanner(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the banner." };
+
+  const alt = String(formData.get("bannerImageAlt") ?? "").trim() || null;
+  const file = formData.get("bannerImage");
+  const patch: Record<string, unknown> = { bannerImageAlt: alt, updatedAt: new Date() };
+
+  if (file instanceof File && file.size > 0) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      return { error: "The banner must be a JPG, PNG or WebP." };
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { error: "That image is larger than 5MB. Export it smaller and try again." };
+    }
+    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
+    const blob = await put(`banner/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
+    patch.bannerImageUrl = blob.url;
+    patch.bannerImagePath = blob.pathname;
+  }
+
+  await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
+  await audit(officer.id, "update_banner", "branch_settings", "1");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function removeBanner() {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the banner." };
+
+  const rows = await db.select().from(branchSettings).where(eq(branchSettings.id, 1)).limit(1);
+  const url = rows[0]?.bannerImageUrl;
+  if (url) { try { await del(url); } catch { /* row should clear regardless */ } }
+
+  await db.update(branchSettings)
+    .set({ bannerImageUrl: null, bannerImagePath: null, bannerImageAlt: null, updatedAt: new Date() })
+    .where(eq(branchSettings.id, 1));
+
+  await audit(officer.id, "remove_banner", "branch_settings", "1");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

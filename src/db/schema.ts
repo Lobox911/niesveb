@@ -44,6 +44,14 @@ export const branchSettings = pgTable("branch_settings", {
   heroImageAlt: text("hero_image_alt"),
   heroTextTone: text("hero_text_tone").notNull().default("dark"),
 
+  /* One image behind every inner page banner — register, certificate,
+     programme and the rest. Always carries a scrim: unlike the hero, the
+     branch cannot preview each page, so white text has to hold whatever
+     they upload. */
+  bannerImageUrl: text("banner_image_url"),
+  bannerImagePath: text("banner_image_path"),
+  bannerImageAlt: text("banner_image_alt"),
+
   /* One account for every event, per the branch. */
   bankName: text("bank_name"),
   accountName: text("account_name"),

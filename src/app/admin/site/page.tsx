@@ -6,6 +6,7 @@ import SettingsForm from "../SettingsForm";
 import LogoUpload from "../event/LogoUpload";
 import HeroBackground from "../event/HeroBackground";
 import HeroSlides from "./HeroSlides";
+import BannerUpload from "./BannerUpload";
 import SectionNav from "../SectionNav";
 import { asc } from "drizzle-orm";
 import { heroSlides } from "@/db";
@@ -40,6 +41,7 @@ export default async function SitePage() {
           { id: "crest", label: "Crest" },
           { id: "hero", label: "Hero background" },
           { id: "slides", label: "Hero slides" },
+          { id: "banner", label: "Page banner" },
         ]}
       />
 
@@ -106,6 +108,13 @@ export default async function SitePage() {
 
       <div id="slides" className="scroll-mt-24">
         <HeroSlides rows={slides} />
+      </div>
+
+      <div id="banner" className="scroll-mt-24">
+        <BannerUpload
+          current={s?.bannerImageUrl ?? null}
+          alt={s?.bannerImageAlt ?? null}
+        />
       </div>
     </div>
   );

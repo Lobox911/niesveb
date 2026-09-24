@@ -42,6 +42,8 @@ export async function getBranch() {
     heroImageUrl: b?.heroImageUrl ?? null,
     heroImageAlt: b?.heroImageAlt ?? null,
     heroTextTone: (b?.heroTextTone === "light" ? "light" : "dark") as "light" | "dark",
+    bannerImageUrl: b?.bannerImageUrl ?? null,
+    bannerImageAlt: b?.bannerImageAlt ?? null,
     bankName: b?.bankName || "",
     accountName: b?.accountName || "",
     accountNumber: b?.accountNumber || "",
