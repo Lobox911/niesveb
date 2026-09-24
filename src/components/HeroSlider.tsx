@@ -77,25 +77,28 @@ export default function HeroSlider({
             alt={s.imageAlt ?? ""}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          {/* One flat overlay. The system forbids gradients, and the reference
-              site proves the point by using none anywhere. A uniform scrim also
-              behaves the same whatever photo the branch uploads, which a
-              gradient does not — they cannot judge contrast in advance. */}
-          <div className="absolute inset-0 bg-ink/60" aria-hidden />
+          {/* 35%, not 60%. At 60% a grey building reads as a grey wall and the
+              photograph is wasted. This is the lowest value that still holds
+              white text over a bright sky; the heading carries a shadow as a
+              second line of defence rather than dimming the image further. */}
+          <div className="absolute inset-0 bg-ink/35" aria-hidden />
         </>
       )}
 
       <div className="container-content relative z-10 w-full py-16 md:py-20">
         <div aria-live="polite" aria-atomic="true">
           {s.eyebrow && (
-            <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">{s.eyebrow}</p>
+            <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold" style={{ textShadow: "0 1px 8px rgba(16,30,46,0.6)" }}>{s.eyebrow}</p>
           )}
-          <h1 className="mt-5 max-w-[18ch] text-[30px] leading-[1.15] text-white md:text-[46px]">
+          <h1
+            className="mt-5 max-w-[16ch] text-[34px] font-bold leading-[1.1] text-white md:text-[56px]"
+            style={{ textShadow: "0 2px 16px rgba(16,30,46,0.55)" }}
+          >
             {s.title}
           </h1>
 
           {(dateLine || venueLine) && (
-            <dl className="mt-9 max-w-[420px]">
+            <dl className="mt-9 max-w-[420px]" style={{ textShadow: "0 1px 8px rgba(16,30,46,0.6)" }}>
               {dateLine && (
                 <div className="flex justify-between gap-6 border-b border-gold/30 py-3">
                   <dt className="mono text-[13px] uppercase tracking-wider text-white/60">Date</dt>
@@ -112,24 +115,25 @@ export default function HeroSlider({
           )}
 
           <div className="mt-9 flex flex-wrap gap-3">
-            <Link href={s.ctaHref || "/register"} className="btn-primary">
+            <Link
+              href={s.ctaHref || "/register"}
+              className="btn-primary min-h-[54px] px-7 text-[16px] font-semibold"
+            >
               {s.ctaLabel || "Register now"}
             </Link>
-            <Link href="/join" className="btn-onink">Join online</Link>
+            {/* Solid, not outlined. A ghost button over a photograph is the
+                first thing to disappear. */}
+            <Link
+              href="/join"
+              className="btn min-h-[54px] bg-white px-7 text-[16px] font-semibold text-ink hover:bg-paper"
+            >
+              Join online
+            </Link>
           </div>
         </div>
 
         {many && (
-          <div className="mt-12 flex items-center gap-4">
-            <button
-              type="button"
-              aria-label="Previous event"
-              onClick={() => setI((n) => (n - 1 + slides.length) % slides.length)}
-              className="btn-onink px-3"
-            >
-              ‹
-            </button>
-
+          <div className="mt-10 flex items-center gap-3">
             <div className="flex gap-2" role="tablist" aria-label="Choose event">
               {slides.map((sl, n) => (
                 <button
@@ -139,28 +143,42 @@ export default function HeroSlider({
                   aria-selected={n === i}
                   aria-label={sl.title}
                   onClick={() => setI(n)}
-                  className={`h-2 rounded transition-all ${
-                    n === i ? "w-8 bg-gold" : "w-2 bg-white/40 hover:bg-white/70"
+                  className={`h-2.5 rounded transition-all ${
+                    n === i ? "w-9 bg-gold" : "w-2.5 bg-white/60 hover:bg-white"
                   }`}
                 />
               ))}
             </div>
-
-            <button
-              type="button"
-              aria-label="Next event"
-              onClick={() => setI((n) => (n + 1) % slides.length)}
-              className="btn-onink px-3"
-            >
-              ›
-            </button>
-
-            <span className="mono ml-2 text-[13px] text-white/60">
+            <span className="mono ml-2 text-[13px] text-white/80">
               {i + 1} / {slides.length}
             </span>
           </div>
         )}
       </div>
+
+      {/* Arrows at the frame edges rather than clustered in a corner, so they
+          read as slider controls rather than page furniture. Solid white for
+          the same reason the buttons are solid — outlines vanish on a photo. */}
+      {many && (
+        <>
+          <button
+            type="button"
+            aria-label="Previous event"
+            onClick={() => setI((n) => (n - 1 + slides.length) % slides.length)}
+            className="absolute left-0 top-1/2 z-20 hidden h-14 w-14 -translate-y-1/2 place-items-center bg-white text-[22px] text-ink hover:bg-paper md:grid"
+          >
+            <span aria-hidden>←</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Next event"
+            onClick={() => setI((n) => (n + 1) % slides.length)}
+            className="absolute right-0 top-1/2 z-20 hidden h-14 w-14 -translate-y-1/2 place-items-center bg-white text-[22px] text-ink hover:bg-paper md:grid"
+          >
+            <span aria-hidden>→</span>
+          </button>
+        </>
+      )}
     </section>
   );
 }
