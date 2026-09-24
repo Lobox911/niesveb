@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import {
   db, registrations, attendance, auditLog, eventSettings, categories, heroSlides,
+  advertRates, programmeItems,
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
@@ -147,6 +148,11 @@ export async function updateEventSettings(formData: FormData) {
     meetingId: s("meetingId") || null,
     supportWhatsapp: s("supportWhatsapp") || null,
     contactEmail: s("contactEmail") || null,
+    contactPhones: s("contactPhones") || null,
+    branchName: s("branchName") || null,
+    registeredAddress: s("registeredAddress") || null,
+    timeLine: s("timeLine") || null,
+    aboutBody: s("aboutBody") || null,
     updatedAt: new Date(),
   };
 
@@ -295,6 +301,159 @@ export async function deleteHeroSlide(id: string) {
 
   await db.delete(heroSlides).where(eq(heroSlides.id, id));
   await audit(officer.id, "delete_hero_slide", "hero_slides", id);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+/* ---------- branch crest ---------- */
+
+export async function uploadLogo(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the crest." };
+
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload." };
+  if (!["image/png", "image/webp", "image/svg+xml", "image/jpeg"].includes(file.type)) {
+    return { error: "The crest must be a PNG, WebP, SVG or JPG." };
+  }
+  if (file.size > 2 * 1024 * 1024) return { error: "That file is larger than 2MB." };
+
+  const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
+  const blob = await put(`brand/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
+
+  await db.update(eventSettings)
+    .set({ logoUrl: blob.url, logoPath: blob.pathname, updatedAt: new Date() })
+    .where(eq(eventSettings.id, 1));
+
+  await audit(officer.id, "upload_logo", "event_settings", "1", { pathname: blob.pathname });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ---------- categories ---------- */
+
+export async function saveCategory(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change categories." };
+
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id || !name) return { error: "A category needs an id and a name." };
+  if (!/^[a-z0-9-]+$/.test(id)) return { error: "The id may use lowercase letters, numbers and hyphens only." };
+
+  const values = {
+    name,
+    eligibility: String(formData.get("eligibility") ?? "").trim(),
+    feeKobo: Math.round(Number(formData.get("fee") ?? 0) * 100),
+    units: Number(formData.get("units") ?? 0) || 0,
+    requiresMembershipNo: formData.get("requiresMembershipNo") === "on",
+    sortOrder: Number(formData.get("sortOrder") ?? 0) || 0,
+  };
+
+  await db.insert(categories).values({ id, ...values })
+    .onConflictDoUpdate({ target: categories.id, set: values });
+
+  await audit(officer.id, "save_category", "categories", id, values);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+export async function deleteCategory(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change categories." };
+
+  // A category with registrations against it must not vanish — the rows
+  // reference it, and the fee history matters at reconciliation.
+  const used = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(registrations)
+    .where(eq(registrations.categoryId, id));
+  if ((used[0]?.n ?? 0) > 0) {
+    return { error: `That category has ${used[0].n} registration(s) against it and cannot be deleted.` };
+  }
+
+  await db.delete(categories).where(eq(categories.id, id));
+  await audit(officer.id, "delete_category", "categories", id);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+/* ---------- advert rates ---------- */
+
+export async function saveAdvertRate(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change advert rates." };
+
+  const id = String(formData.get("id") ?? "");
+  const placement = String(formData.get("placement") ?? "").trim();
+  if (!placement) return { error: "A placement needs a name." };
+
+  const values = {
+    placement,
+    spec: String(formData.get("spec") ?? "").trim(),
+    rateKobo: Math.round(Number(formData.get("rate") ?? 0) * 100),
+    sortOrder: Number(formData.get("sortOrder") ?? 0) || 0,
+  };
+
+  if (id) {
+    await db.update(advertRates).set(values).where(eq(advertRates.id, id));
+  } else {
+    await db.insert(advertRates).values(values);
+  }
+  await audit(officer.id, "save_advert_rate", "advert_rates", id || placement, values);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+export async function deleteAdvertRate(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change advert rates." };
+  await db.delete(advertRates).where(eq(advertRates.id, id));
+  await audit(officer.id, "delete_advert_rate", "advert_rates", id);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+/* ---------- programme ---------- */
+
+export async function saveProgrammeItem(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the programme." };
+
+  const id = String(formData.get("id") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const timeLabel = String(formData.get("timeLabel") ?? "").trim();
+  if (!title || !timeLabel) return { error: "A session needs a time and a title." };
+
+  const values = {
+    timeLabel,
+    title,
+    speaker: String(formData.get("speaker") ?? "").trim() || null,
+    isBreak: formData.get("isBreak") === "on",
+    sortOrder: Number(formData.get("sortOrder") ?? 0) || 0,
+  };
+
+  if (id) {
+    await db.update(programmeItems).set(values).where(eq(programmeItems.id, id));
+  } else {
+    await db.insert(programmeItems).values(values);
+  }
+  await audit(officer.id, "save_programme_item", "programme_items", id || title, values);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
+
+export async function deleteProgrammeItem(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the programme." };
+  await db.delete(programmeItems).where(eq(programmeItems.id, id));
+  await audit(officer.id, "delete_programme_item", "programme_items", id);
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true };

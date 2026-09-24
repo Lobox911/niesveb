@@ -12,7 +12,7 @@ const NAV = [
   { href: "/programme", label: "Programme" },
 ];
 
-export default function Header() {
+export default function Header({ logoUrl, branch }: { logoUrl?: string | null; branch?: string } = {}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -27,12 +27,17 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-line bg-white">
       <div className="container-content flex h-[68px] items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded bg-ink text-white mono text-[13px]">
-            EB
-          </span>
+          {logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={logoUrl} alt="" className="h-10 w-auto" />
+          ) : (
+            <span className="grid h-10 w-10 place-items-center rounded bg-ink text-white mono text-[13px]">
+              EB
+            </span>
+          )}
           <span className="leading-tight">
             <span className="block text-[15px] font-semibold text-ink">NIESV</span>
-            <span className="block text-[12px] text-muted">Ebonyi State Branch</span>
+            <span className="block text-[12px] text-muted">{branch ?? "Ebonyi State Branch"}</span>
           </span>
         </Link>
 

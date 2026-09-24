@@ -6,11 +6,19 @@ type Initial = Record<string, string>;
 
 const GROUPS: { legend: string; fields: [string, string, string?, string?][] }[] = [
   {
+    legend: "The branch",
+    fields: [
+      ["branchName", "Branch name", "text", "Appears in the footer and page titles."],
+      ["registeredAddress", "Registered address", "text", "Shown in the footer."],
+    ],
+  },
+  {
     legend: "The seminar",
     fields: [
       ["eventTitle", "Event title"],
       ["theme", "Theme", "text", "Appears as the headline on the home page."],
       ["startsAt", "Starts at", "datetime-local"],
+      ["timeLine", "Time, as written", "text", "For example: 09:00 WAT daily."],
       ["registrationDeadline", "Registration deadline", "datetime-local"],
       ["venue", "Venue"],
       ["venueAddress", "Venue address", "text", "Used for search listings and the map."],
@@ -36,6 +44,7 @@ const GROUPS: { legend: string; fields: [string, string, string?, string?][] }[]
     fields: [
       ["supportWhatsapp", "Support WhatsApp number"],
       ["contactEmail", "Contact email", "email"],
+      ["contactPhones", "Contact phone numbers", "text", "Separate several with commas. They appear in the footer as tappable links."],
     ],
   },
 ];
@@ -71,6 +80,18 @@ export default function EventSettingsForm({ initial }: { initial: Initial }) {
           </div>
         </fieldset>
       ))}
+
+      <fieldset className="card mt-5 p-6">
+        <legend className="mono px-2 text-[12px] uppercase tracking-wider text-muted">About the seminar</legend>
+        <label className="label" htmlFor="aboutBody">Body text</label>
+        <textarea
+          id="aboutBody" name="aboutBody" rows={8} className="field py-2"
+          defaultValue={initial.aboutBody ?? ""}
+        />
+        <p className="help">
+          Leave a blank line between paragraphs. Blank falls back to the default copy.
+        </p>
+      </fieldset>
 
       <div className="sticky bottom-0 mt-6 border-t border-line bg-paper py-4">
         {msg?.error && <p role="alert" className="mb-3 text-[14px] text-danger">{msg.error}</p>}

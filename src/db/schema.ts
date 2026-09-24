@@ -164,6 +164,15 @@ export const eventSettings = pgTable("event_settings", {
   meetingUrl: text("meeting_url"),
   meetingId: text("meeting_id"),
   supportWhatsapp: text("support_whatsapp"),
+  contactPhones: text("contact_phones"),        // comma separated
+  branchName: text("branch_name"),
+  registeredAddress: text("registered_address"),
+  timeLine: text("time_line"),                  // "09:00 WAT daily"
+  aboutBody: text("about_body"),                // paragraphs, blank line separated
+
+  /* Branch crest, stored in Vercel Blob. Replaces the "EB" placeholder. */
+  logoUrl: text("logo_url"),
+  logoPath: text("logo_path"),
 
   /* Seminar flyer, stored in Vercel Blob.
      flyerUrl is what the page renders. flyerPath is the blob pathname,
@@ -207,3 +216,27 @@ export const heroSlides = pgTable(
 );
 
 export type HeroSlide = typeof heroSlides.$inferSelect;
+
+/** Brochure advert placements. A table rather than columns so the branch can
+ *  add and remove placements without a schema change — the reference site
+ *  lists eight, ours listed two. */
+export const advertRates = pgTable("advert_rates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  placement: text("placement").notNull(),
+  spec: text("spec").notNull().default(""),
+  rateKobo: integer("rate_kobo").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+/** Programme entries for the running order. */
+export const programmeItems = pgTable("programme_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  timeLabel: text("time_label").notNull(),
+  title: text("title").notNull(),
+  speaker: text("speaker"),
+  isBreak: boolean("is_break").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export type AdvertRate = typeof advertRates.$inferSelect;
+export type ProgrammeItem = typeof programmeItems.$inferSelect;

@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { event, currentYear } from "@/lib/event";
+import { currentYear } from "@/lib/event";
+import { getSiteData } from "@/lib/site";
 
 /**
  * Rebuilt. In the Stitch export the column headings were <a href="#"> with
  * empty lists beneath, so the footer was three dead links and a copyright.
- * Headings are <h3>; every column reads from lib/event.ts.
+ * Headings are <h3>; every column reads from the database via getSiteData.
  */
-export default function Footer() {
+export default async function Footer() {
+  const event = await getSiteData();
   return (
     <footer className="mt-24 bg-ink text-white">
       <div className="container-content grid gap-10 py-14 md:grid-cols-3">
@@ -71,6 +73,9 @@ export default function Footer() {
           <p className="text-[14px] text-white/70">
             © {currentYear} {event.branch}. All rights reserved.
           </p>
+          {event.registeredAddress && (
+            <p className="mt-1 text-[13px] text-white/50">{event.registeredAddress}</p>
+          )}
         </div>
       </div>
     </footer>

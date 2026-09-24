@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
-import { db, eventSettings, heroSlides } from "@/db";
+import { db, heroSlides } from "@/db";
 import HeroSlider from "@/components/HeroSlider";
 import BackToTop from "@/components/BackToTop";
 import CopyButton from "@/components/CopyButton";
-import { event, formatNaira } from "@/lib/event";
+import { getSiteData } from "@/lib/site";
 
 export default async function Home() {
-  const [settingsRows, slides] = await Promise.all([
-    db.select().from(eventSettings).limit(1),
+  const [event, slides] = await Promise.all([
+    getSiteData(),
     db.select().from(heroSlides).where(eq(heroSlides.published, true)).orderBy(asc(heroSlides.sortOrder)),
   ]);
-  const flyer = settingsRows[0];
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -41,8 +40,8 @@ export default async function Home() {
       {slides.length > 0 ? (
         <HeroSlider
           slides={slides}
-          fallbackDate={flyer?.startsAt ? new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "long", year: "numeric" }).format(flyer.startsAt) : event.date}
-          fallbackVenue={flyer?.venue ?? event.venue}
+          fallbackDate={event.date}
+          fallbackVenue={event.venue}
         />
       ) : (
         <section className="relative overflow-hidden bg-ink">
@@ -86,7 +85,7 @@ export default async function Home() {
            one thing, and should not have to find it in the nav. Full width,
            directly under the hero, solid ink. */}
       <section className="border-y border-white/10 bg-ink">
-        <div className="container-content flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 text-center">
+        <div className="container-content flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-4 pb-14 text-center md:pb-16">
           <Link
             href="/certificate"
             className="mono text-[14px] uppercase tracking-[0.15em] text-white underline-offset-4 hover:underline"
@@ -104,7 +103,7 @@ export default async function Home() {
       </section>
 
       {/* 2. AT A GLANCE — the four facts every phone call asks about */}
-      <section className="container-content -mt-8 relative z-20">
+      <section className="container-content relative z-20 -mt-10 md:-mt-12">
         <dl className="card grid grid-cols-2 divide-line md:grid-cols-4 md:divide-x">
           {[
             ["Date", event.date],
@@ -129,16 +128,17 @@ export default async function Home() {
         <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
           <div className="max-w-prose">
             <h2 className="text-[26px]">About the seminar</h2>
-            <p className="mt-4 text-[17px] leading-relaxed text-muted">
-              The {event.eventTitle} brings practitioners in Ebonyi State together
-              around current standards in estate surveying and valuation practice.
-              Sessions address regulatory developments, valuation methodology and
-              the tools shaping professional work.
-            </p>
-            <p className="mt-4 text-[17px] leading-relaxed text-muted">
-              Attendance is open to Fellows, Members, probationers and students of
-              the Institution, as well as allied professionals and the general public.
-            </p>
+            {(event.aboutBody.length > 0
+              ? event.aboutBody
+              : [
+                  `The ${event.eventTitle} brings practitioners in Ebonyi State together around current standards in estate surveying and valuation practice. Sessions address regulatory developments, valuation methodology and the tools shaping professional work.`,
+                  "Attendance is open to Fellows, Members, probationers and students of the Institution, as well as allied professionals and the general public.",
+                ]
+            ).map((para, n) => (
+              <p key={n} className="mt-4 text-[17px] leading-relaxed text-muted">
+                {para}
+              </p>
+            ))}
 
             <h3 className="mono mt-10 text-[12px] uppercase tracking-wider text-muted">
               What you leave with
@@ -153,24 +153,24 @@ export default async function Home() {
             </ul>
           </div>
 
-          {flyer?.flyerUrl && (
+          {event.flyerUrl && (
             <aside>
               <h3 className="mono text-[12px] uppercase tracking-wider text-muted">
                 Seminar flyer
               </h3>
-              {flyer.flyerUrl.toLowerCase().endsWith(".pdf") ? (
-                <a href={flyer.flyerUrl} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
+              {event.flyerUrl.toLowerCase().endsWith(".pdf") ? (
+                <a href={event.flyerUrl} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
                   Open the flyer (PDF)
                 </a>
               ) : (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={flyer.flyerUrl}
-                    alt={flyer.flyerAlt ?? "Seminar flyer"}
+                    src={event.flyerUrl}
+                    alt={event.flyerAlt ?? "Seminar flyer"}
                     className="mt-4 w-full rounded border border-line"
                   />
-                  <a href={flyer.flyerUrl} download className="btn-secondary mt-4 w-full">
+                  <a href={event.flyerUrl} download className="btn-secondary mt-4 w-full">
                     Download the flyer
                   </a>
                   <p className="help">Share this with colleagues who have not registered yet.</p>
@@ -252,7 +252,7 @@ export default async function Home() {
                       {c.name}
                       <span className="block text-[13px] font-normal text-muted">{c.eligibility}</span>
                     </th>
-                    <td className="mono px-4 py-4 text-right text-[15px] text-ink whitespace-nowrap">{formatNaira(c.fee)}</td>
+                    <td className="mono px-4 py-4 text-right text-[15px] text-ink whitespace-nowrap">{c.feeLabel}</td>
                     <td className="mono px-4 py-4 text-right text-[14px] text-muted">{c.units}</td>
                     <td className="py-4 pl-4 text-right">
                       <Link href={`/register?category=${c.id}`} className="text-[14px] text-green underline underline-offset-4">
@@ -285,7 +285,7 @@ export default async function Home() {
                   <th scope="row" className="py-4 pr-4 text-[15px] font-medium text-ink" style={{ fontFamily: "var(--font-body)" }}>
                     {a.placement}
                   </th>
-                  <td className="mono py-4 pl-4 text-right text-[15px] text-ink">{formatNaira(a.rate)}</td>
+                  <td className="mono py-4 pl-4 text-right text-[15px] text-ink">{a.rateLabel}</td>
                 </tr>
               ))}
             </tbody>

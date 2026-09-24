@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { asc } from "drizzle-orm";
-import { db, eventSettings, categories, heroSlides } from "@/db";
+import {
+  db, eventSettings, categories, heroSlides, advertRates, programmeItems,
+} from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import EventSettingsForm from "./EventSettingsForm";
-import FeeTable from "./FeeTable";
+import LogoUpload from "./LogoUpload";
 import FlyerUpload from "./FlyerUpload";
 import HeroSlides from "./HeroSlides";
+import { CategoryList, AdvertList, ProgrammeList } from "./Lists";
 
 export const metadata: Metadata = { title: "Event settings" };
 
@@ -14,10 +17,12 @@ export default async function EventPage() {
   const officer = await requireOfficer();
   if (officer.role !== "admin") redirect("/admin");
 
-  const [settingsRows, cats, slides] = await Promise.all([
+  const [settingsRows, cats, slides, adverts, programme] = await Promise.all([
     db.select().from(eventSettings).limit(1),
-    db.select().from(categories).orderBy(categories.sortOrder),
+    db.select().from(categories).orderBy(asc(categories.sortOrder)),
     db.select().from(heroSlides).orderBy(asc(heroSlides.sortOrder)),
+    db.select().from(advertRates).orderBy(asc(advertRates.sortOrder)),
+    db.select().from(programmeItems).orderBy(asc(programmeItems.sortOrder)),
   ]);
   const s = settingsRows[0];
 
@@ -28,15 +33,18 @@ export default async function EventPage() {
     <div className="p-6 lg:p-10">
       <h1 className="text-[26px] text-ink">Event settings</h1>
       <p className="mt-1 max-w-prose text-[15px] text-muted">
-        These values appear on the public site. Changes take effect immediately,
-        so the branch can run next year&rsquo;s seminar without a developer.
+        Everything on this page appears on the public site and takes effect
+        immediately. Nothing here needs a developer.
       </p>
 
       <EventSettingsForm
         initial={{
+          branchName: s?.branchName ?? "",
+          registeredAddress: s?.registeredAddress ?? "",
           eventTitle: s?.eventTitle ?? "",
           theme: s?.theme ?? "",
           startsAt: iso(s?.startsAt),
+          timeLine: s?.timeLine ?? "",
           registrationDeadline: iso(s?.registrationDeadline),
           venue: s?.venue ?? "",
           venueAddress: s?.venueAddress ?? "",
@@ -47,18 +55,38 @@ export default async function EventPage() {
           meetingId: s?.meetingId ?? "",
           supportWhatsapp: s?.supportWhatsapp ?? "",
           contactEmail: s?.contactEmail ?? "",
+          contactPhones: s?.contactPhones ?? "",
+          aboutBody: s?.aboutBody ?? "",
         }}
+      />
+
+      <LogoUpload current={s?.logoUrl ?? null} />
+
+      <CategoryList
+        rows={cats.map((c) => ({
+          id: c.id, name: c.name, eligibility: c.eligibility,
+          fee: c.feeKobo / 100, units: c.units,
+          requiresMembershipNo: c.requiresMembershipNo, sortOrder: c.sortOrder,
+        }))}
+      />
+
+      <AdvertList
+        rows={adverts.map((a) => ({
+          id: a.id, placement: a.placement, spec: a.spec,
+          rate: a.rateKobo / 100, sortOrder: a.sortOrder,
+        }))}
+      />
+
+      <ProgrammeList
+        rows={programme.map((p) => ({
+          id: p.id, timeLabel: p.timeLabel, title: p.title,
+          speaker: p.speaker ?? "", isBreak: p.isBreak, sortOrder: p.sortOrder,
+        }))}
       />
 
       <HeroSlides rows={slides} />
 
       <FlyerUpload current={s?.flyerUrl ?? null} alt={s?.flyerAlt ?? null} />
-
-      <FeeTable
-        rows={cats.map((c) => ({
-          id: c.id, name: c.name, fee: c.feeKobo / 100, units: c.units,
-        }))}
-      />
     </div>
   );
 }

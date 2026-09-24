@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
-import { event } from "@/lib/event";
+import { getSiteData } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Programme" };
 
-export default function ProgrammePage() {
+export default async function ProgrammePage() {
+  const event = await getSiteData();
   return (
     <>
       <PageBanner title="Programme" crumb="Programme" />
@@ -16,13 +17,15 @@ export default function ProgrammePage() {
         ) : (
           <ul>
             {event.programme.map((s, i) => (
-              <li key={i} className="flex gap-6 border-b border-line py-5 last:border-b-0">
-                <span className="mono w-[96px] shrink-0 text-[15px] text-gold">{s.time}</span>
+              <li key={i} className={`flex gap-6 border-b border-line py-5 last:border-b-0 ${s.isBreak ? "bg-paper" : ""}`}>
+                <span className={`mono w-[96px] shrink-0 text-[15px] ${s.isBreak ? "text-muted" : "text-gold"}`}>{s.time}</span>
                 <span>
-                  <span className="block text-[17px] font-semibold text-ink">{s.title}</span>
-                  <span className="block text-[15px] text-muted">
-                    {s.speaker ?? "Speaker to be announced"}
-                  </span>
+                  <span className={`block text-[17px] ${s.isBreak ? "text-muted" : "font-semibold text-ink"}`}>{s.title}</span>
+                  {!s.isBreak && (
+                    <span className="block text-[15px] text-muted">
+                      {s.speaker || "Speaker to be announced"}
+                    </span>
+                  )}
                 </span>
               </li>
             ))}
