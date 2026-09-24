@@ -56,7 +56,7 @@ export default function HeroSlider({
 
   return (
     <section
-      className="relative flex min-h-[420px] items-center overflow-hidden bg-ink md:min-h-[480px]"
+      className="relative flex min-h-[460px] items-center overflow-hidden bg-ink md:min-h-[560px]"
       aria-roledescription={many ? "carousel" : undefined}
       aria-label={many ? "Upcoming events" : undefined}
       onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
@@ -77,17 +77,11 @@ export default function HeroSlider({
             alt={s.imageAlt ?? ""}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          {/* A left-to-right gradient rather than a flat overlay: dark where
-              the text sits, clearing over the right of the frame so the image
-              itself stays visible. A flat scrim would dim the whole photo;
-              none at all would make white text unreadable on a bright sky,
-              and the branch cannot know in advance which they will upload. */}
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-ink via-ink/85 to-ink/35"
-            aria-hidden
-          />
-          {/* Floor of contrast for the very brightest images. */}
-          <div className="absolute inset-0 bg-ink/25" aria-hidden />
+          {/* One flat overlay. The system forbids gradients, and the reference
+              site proves the point by using none anywhere. A uniform scrim also
+              behaves the same whatever photo the branch uploads, which a
+              gradient does not — they cannot judge contrast in advance. */}
+          <div className="absolute inset-0 bg-ink/60" aria-hidden />
         </>
       )}
 

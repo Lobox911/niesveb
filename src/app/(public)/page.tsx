@@ -2,6 +2,7 @@ import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { db, eventSettings, heroSlides } from "@/db";
 import HeroSlider from "@/components/HeroSlider";
+import BackToTop from "@/components/BackToTop";
 import CopyButton from "@/components/CopyButton";
 import { event, formatNaira } from "@/lib/event";
 
@@ -80,6 +81,27 @@ export default async function Home() {
           </span>
         </section>
       )}
+
+      {/* 1b. CERTIFICATE BAND — a returning participant comes back for exactly
+           one thing, and should not have to find it in the nav. Full width,
+           directly under the hero, solid ink. */}
+      <section className="border-y border-white/10 bg-ink">
+        <div className="container-content flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 text-center">
+          <Link
+            href="/certificate"
+            className="mono text-[14px] uppercase tracking-[0.15em] text-white underline-offset-4 hover:underline"
+          >
+            Print your certificate
+          </Link>
+          <span aria-hidden className="text-white/30">·</span>
+          <Link
+            href="/retrieve"
+            className="mono text-[14px] uppercase tracking-[0.15em] text-white/70 underline-offset-4 hover:text-white hover:underline"
+          >
+            Retrieve your passcode
+          </Link>
+        </div>
+      </section>
 
       {/* 2. AT A GLANCE — the four facts every phone call asks about */}
       <section className="container-content -mt-8 relative z-20">
@@ -307,6 +329,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      <BackToTop />
     </>
   );
 }
