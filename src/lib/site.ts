@@ -70,6 +70,9 @@ export async function getSiteData() {
       .filter(Boolean),
 
     logoUrl: s?.logoUrl ?? null,
+    heroImageUrl: s?.heroImageUrl ?? null,
+    heroImageAlt: s?.heroImageAlt ?? null,
+    heroTextTone: (s?.heroTextTone === "light" ? "light" : "dark") as "light" | "dark",
     flyerUrl: s?.flyerUrl ?? null,
     flyerAlt: s?.flyerAlt ?? null,
 

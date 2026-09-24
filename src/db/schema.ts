@@ -174,6 +174,17 @@ export const eventSettings = pgTable("event_settings", {
   logoUrl: text("logo_url"),
   logoPath: text("logo_path"),
 
+  /* One fixed hero background for every slide. Vetted once by the branch,
+     which is what makes dark text and a clean, un-dimmed photograph safe —
+     per-slide uploads were a gamble on every new image. */
+  heroImageUrl: text("hero_image_url"),
+  heroImagePath: text("hero_image_path"),
+  heroImageAlt: text("hero_image_alt"),
+  /* 'dark' text on a pale photo, 'light' text with a scrim on a dark one.
+     A setting rather than a guess, because only the branch can see the
+     image they chose. */
+  heroTextTone: text("hero_text_tone").notNull().default("dark"),
+
   /* Seminar flyer, stored in Vercel Blob.
      flyerUrl is what the page renders. flyerPath is the blob pathname,
      kept so the files can be re-uploaded to a different store at handover

@@ -9,6 +9,7 @@ import EventSettingsForm from "./EventSettingsForm";
 import LogoUpload from "./LogoUpload";
 import FlyerUpload from "./FlyerUpload";
 import HeroSlides from "./HeroSlides";
+import HeroBackground from "./HeroBackground";
 import { CategoryList, AdvertList, ProgrammeList } from "./Lists";
 
 export const metadata: Metadata = { title: "Event settings" };
@@ -82,6 +83,12 @@ export default async function EventPage() {
           id: p.id, timeLabel: p.timeLabel, title: p.title,
           speaker: p.speaker ?? "", isBreak: p.isBreak, sortOrder: p.sortOrder,
         }))}
+      />
+
+      <HeroBackground
+        current={s?.heroImageUrl ?? null}
+        alt={s?.heroImageAlt ?? null}
+        tone={s?.heroTextTone ?? "dark"}
       />
 
       <HeroSlides rows={slides} />

@@ -40,8 +40,10 @@ export default async function Home() {
       {slides.length > 0 ? (
         <HeroSlider
           slides={slides}
+          backgroundUrl={event.heroImageUrl}
+          backgroundAlt={event.heroImageAlt}
+          tone={event.heroTextTone}
           fallbackDate={event.date}
-          fallbackVenue={event.venue}
         />
       ) : (
         <section className="relative overflow-hidden bg-ink">

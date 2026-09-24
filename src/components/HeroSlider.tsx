@@ -7,30 +7,37 @@ export type Slide = {
   eyebrow: string | null;
   title: string;
   dateLine: string | null;
-  venueLine: string | null;
   ctaLabel: string | null;
   ctaHref: string | null;
-  imageUrl: string | null;
-  imageAlt: string | null;
 };
 
 /**
- * One slide per upcoming event.
+ * One fixed background, rotating content.
  *
- * No autoplay. A hero that moves on its own steals the reader's place mid
- * sentence and is a well-known accessibility problem; with a handful of real
- * events the reader can page through at their own speed. Arrow keys work,
- * swipe works on touch, and a single slide renders without any controls at
- * all rather than showing a one-dot pager.
+ * Previously each slide carried its own image, which made every upload a
+ * gamble: white text plus a 35-60% scrim was the only thing that survived an
+ * unknown photo, and it dimmed the photograph to a grey wall.
+ *
+ * A single background vetted once by the branch removes that. They can see
+ * whether the text area is pale, so dark text over an un-dimmed image is safe
+ * — and `tone` lets them switch to light text if they later swap in something
+ * dark, without needing a developer.
+ *
+ * No autoplay: a hero that advances on its own moves the reader's place
+ * mid-sentence.
  */
 export default function HeroSlider({
   slides,
+  backgroundUrl,
+  backgroundAlt,
+  tone = "dark",
   fallbackDate,
-  fallbackVenue,
 }: {
   slides: Slide[];
+  backgroundUrl?: string | null;
+  backgroundAlt?: string | null;
+  tone?: "dark" | "light";
   fallbackDate?: string | null;
-  fallbackVenue?: string | null;
 }) {
   const [i, setI] = useState(0);
   const touchX = useRef<number | null>(null);
@@ -49,10 +56,14 @@ export default function HeroSlider({
   const s = slides[i];
   if (!s) return null;
 
-  // A slide with no date or venue falls back to the event settings, so the
-  // hero is never bare just because someone left a field blank.
   const dateLine = s.dateLine || fallbackDate || null;
-  const venueLine = s.venueLine || fallbackVenue || null;
+
+  // With no background the section falls back to solid ink, where light text
+  // is the only readable option whatever tone is stored.
+  const light = tone === "light" || !backgroundUrl;
+
+  const textColour = light ? "text-white" : "text-ink";
+  const ruleColour = light ? "border-white/50" : "border-ink/30";
 
   return (
     <section
@@ -69,63 +80,53 @@ export default function HeroSlider({
         touchX.current = null;
       }}
     >
-      {s.imageUrl && (
+      {backgroundUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={s.imageUrl}
-            alt={s.imageAlt ?? ""}
+            src={backgroundUrl}
+            alt={backgroundAlt ?? ""}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          {/* 35%, not 60%. At 60% a grey building reads as a grey wall and the
-              photograph is wasted. This is the lowest value that still holds
-              white text over a bright sky; the heading carries a shadow as a
-              second line of defence rather than dimming the image further. */}
-          <div className="absolute inset-0 bg-ink/35" aria-hidden />
+          {/* Only on the light tone. On a vetted pale image there is no scrim
+              at all, which is what keeps the photograph looking like one. */}
+          {tone === "light" && <div className="absolute inset-0 bg-ink/45" aria-hidden />}
         </>
       )}
 
       <div className="container-content relative z-10 w-full py-16 md:py-20">
         <div aria-live="polite" aria-atomic="true">
           {s.eyebrow && (
-            <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold" style={{ textShadow: "0 1px 8px rgba(16,30,46,0.6)" }}>{s.eyebrow}</p>
+            <p className={`flex items-center gap-2 text-[16px] font-medium ${textColour}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gold" aria-hidden>
+                <path d="M12 3 2 11h3v9h6v-6h2v6h6v-9h3L12 3Z" />
+              </svg>
+              {s.eyebrow}
+            </p>
           )}
-          <h1
-            className="mt-5 max-w-[16ch] text-[34px] font-bold leading-[1.1] text-white md:text-[56px]"
-            style={{ textShadow: "0 2px 16px rgba(16,30,46,0.55)" }}
-          >
+
+          <h1 className={`mt-5 max-w-[16ch] text-[34px] font-bold leading-[1.1] md:text-[56px] ${textColour}`}>
             {s.title}
           </h1>
 
-          {(dateLine || venueLine) && (
-            <dl className="mt-9 max-w-[420px]" style={{ textShadow: "0 1px 8px rgba(16,30,46,0.6)" }}>
-              {dateLine && (
-                <div className="flex justify-between gap-6 border-b border-gold/30 py-3">
-                  <dt className="mono text-[13px] uppercase tracking-wider text-white/60">Date</dt>
-                  <dd className="mono text-[15px] text-white">{dateLine}</dd>
-                </div>
-              )}
-              {venueLine && (
-                <div className="flex justify-between gap-6 border-b border-gold/30 py-3">
-                  <dt className="mono text-[13px] uppercase tracking-wider text-white/60">Venue</dt>
-                  <dd className="mono text-[15px] text-white">{venueLine}</dd>
-                </div>
-              )}
-            </dl>
+          {dateLine && (
+            <p className={`mt-8 border-l-2 pl-4 text-[18px] md:text-[20px] ${ruleColour} ${textColour}`}>
+              {dateLine}
+            </p>
           )}
 
-          <div className="mt-9 flex flex-wrap gap-3">
+          <div className="mt-10 flex flex-wrap gap-3">
             <Link
               href={s.ctaHref || "/register"}
               className="btn-primary min-h-[54px] px-7 text-[16px] font-semibold"
             >
               {s.ctaLabel || "Register now"}
             </Link>
-            {/* Solid, not outlined. A ghost button over a photograph is the
+            {/* Solid, never outlined — a ghost button over a photograph is the
                 first thing to disappear. */}
             <Link
               href="/join"
-              className="btn min-h-[54px] bg-white px-7 text-[16px] font-semibold text-ink hover:bg-paper"
+              className="btn min-h-[54px] bg-ink px-7 text-[16px] font-semibold text-white hover:opacity-90"
             >
               Join online
             </Link>
@@ -144,21 +145,22 @@ export default function HeroSlider({
                   aria-label={sl.title}
                   onClick={() => setI(n)}
                   className={`h-2.5 rounded transition-all ${
-                    n === i ? "w-9 bg-gold" : "w-2.5 bg-white/60 hover:bg-white"
+                    n === i
+                      ? "w-9 bg-green"
+                      : light
+                        ? "w-2.5 bg-white/60 hover:bg-white"
+                        : "w-2.5 bg-ink/30 hover:bg-ink/60"
                   }`}
                 />
               ))}
             </div>
-            <span className="mono ml-2 text-[13px] text-white/80">
+            <span className={`mono ml-2 text-[13px] ${light ? "text-white/80" : "text-muted"}`}>
               {i + 1} / {slides.length}
             </span>
           </div>
         )}
       </div>
 
-      {/* Arrows at the frame edges rather than clustered in a corner, so they
-          read as slider controls rather than page furniture. Solid white for
-          the same reason the buttons are solid — outlines vanish on a photo. */}
       {many && (
         <>
           <button

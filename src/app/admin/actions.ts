@@ -458,3 +458,35 @@ export async function deleteProgrammeItem(id: string) {
   revalidatePath("/admin/event");
   return { ok: true };
 }
+
+/* ---------- fixed hero background ---------- */
+
+export async function uploadHeroBackground(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change the hero." };
+
+  const tone = String(formData.get("heroTextTone") ?? "dark") === "light" ? "light" : "dark";
+  const alt = String(formData.get("heroImageAlt") ?? "").trim() || null;
+
+  const file = formData.get("heroImage");
+  const patch: Record<string, unknown> = { heroTextTone: tone, heroImageAlt: alt, updatedAt: new Date() };
+
+  if (file instanceof File && file.size > 0) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      return { error: "The background must be a JPG, PNG or WebP." };
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { error: "That image is larger than 5MB. Export it smaller and try again." };
+    }
+    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
+    const blob = await put(`hero/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
+    patch.heroImageUrl = blob.url;
+    patch.heroImagePath = blob.pathname;
+  }
+
+  await db.update(eventSettings).set(patch).where(eq(eventSettings.id, 1));
+  await audit(officer.id, "update_hero_background", "event_settings", "1", { tone });
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/event");
+  return { ok: true };
+}
