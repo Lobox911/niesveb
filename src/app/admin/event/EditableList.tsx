@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 export type FieldDef = {
   name: string;
@@ -26,6 +26,7 @@ export default function EditableList({
   onSave,
   onDelete,
   addLabel = "Add",
+  children,
 }: {
   title: string;
   description: string;
@@ -34,10 +35,12 @@ export default function EditableList({
   onSave: (fd: FormData) => Promise<{ ok?: boolean; error?: string } | void>;
   onDelete: (id: string) => Promise<{ ok?: boolean; error?: string } | void>;
   addLabel?: string;
+  children?: React.ReactNode;
 }) {
   const [editing, setEditing] = useState<RowShape | "new" | null>(null);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const value = (row: RowShape | "new", name: string) =>
     row === "new" ? "" : String(row[name] ?? "");
@@ -80,16 +83,29 @@ export default function EditableList({
       )}
 
       {editing === null ? (
-        <button type="button" className="btn-primary mt-4" onClick={() => { setEditing("new"); setMsg(null); }}>
-          {addLabel}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" className="btn-primary" onClick={() => { setEditing("new"); setMsg(null); }}>
+            {addLabel}
+          </button>
+          {children}
+        </div>
       ) : (
         <form
+          ref={formRef}
           className="card mt-5 p-6"
           action={(fd) => start(async () => {
             const res = (await onSave(fd)) ?? null;
             setMsg(res);
-            if (res?.ok) setEditing(null);
+            if (!res?.ok) return;
+            if (editing === "new") {
+              // Adding several in a row is the normal case — four fee
+              // categories, a dozen programme sessions. Closing the form after
+              // each one meant reopening it every time.
+              formRef.current?.reset();
+              formRef.current?.querySelector<HTMLInputElement>("input, select")?.focus();
+            } else {
+              setEditing(null);
+            }
           })}
         >
           {editing !== "new" && <input type="hidden" name="id" value={editing.id} />}
@@ -121,11 +137,11 @@ export default function EditableList({
 
           <div className="mt-6 flex gap-3">
             <button type="submit" disabled={pending} className="btn-primary disabled:opacity-60">
-              {pending ? "Saving" : "Save"}
+              {pending ? "Saving" : editing === "new" ? "Save and add another" : "Save"}
             </button>
             <button type="button" className="btn-secondary"
               onClick={() => { setEditing(null); setMsg(null); }}>
-              Cancel
+              {editing === "new" ? "Done" : "Cancel"}
             </button>
           </div>
         </form>

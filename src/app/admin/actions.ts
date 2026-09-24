@@ -727,3 +727,45 @@ export async function changePassword(formData: FormData) {
   revalidatePath("/admin/officers");
   return { ok: true };
 }
+
+/** The four categories every NIESV branch seminar uses. Typing them out for
+ *  each new event is four rounds of the same form; the fees are then edited
+ *  in place from whatever the flyer says. */
+export async function addStandardCategories(eventId: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change categories." };
+  if (!eventId) return { error: "No event selected." };
+
+  const existing = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(categories)
+    .where(eq(categories.eventId, eventId));
+  if ((existing[0]?.n ?? 0) > 0) {
+    return { error: "This event already has categories. Add or edit them individually." };
+  }
+
+  const standard = [
+    { key: "fellows", name: "Fellows", eligibility: "Registered Fellows of the Institution", fee: 10000, member: true },
+    { key: "members", name: "Members", eligibility: "Registered Members of the Institution", fee: 8000, member: true },
+    { key: "probationers", name: "Probationers/Graduates", eligibility: "Probationers and graduate members", fee: 5000, member: true },
+    { key: "students", name: "Students", eligibility: "Students of accredited institutions", fee: 2000, member: false },
+  ];
+
+  for (const [i, c] of standard.entries()) {
+    await db.insert(categories).values({
+      eventId,
+      key: c.key,
+      name: c.name,
+      eligibility: c.eligibility,
+      feeKobo: c.fee * 100,
+      units: 3,
+      requiresMembershipNo: c.member,
+      sortOrder: i,
+    });
+  }
+
+  await audit(officer.id, "add_standard_categories", "categories", eventId, { count: standard.length });
+  revalidatePath("/", "layout");
+  revalidatePath(`/admin/events/${eventId}`);
+  return { ok: true };
+}

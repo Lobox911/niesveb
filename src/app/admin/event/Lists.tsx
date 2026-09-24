@@ -1,7 +1,8 @@
 "use client";
 import EditableList from "./EditableList";
+import { useState, useTransition } from "react";
 import {
-  saveCategory, deleteCategory,
+  saveCategory, deleteCategory, addStandardCategories,
   saveAdvertRate, deleteAdvertRate,
   saveProgrammeItem, deleteProgrammeItem,
 } from "../actions";
@@ -13,6 +14,9 @@ type Prog = { id: string; timeLabel: string; title: string; speaker: string; isB
 const naira = (n: number) => `₦${n.toLocaleString("en-NG")}`;
 
 export function CategoryList({ eventId, rows }: { eventId: string; rows: Cat[] }) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
   return (
     <EditableList
       title="Participation categories"
@@ -32,7 +36,22 @@ export function CategoryList({ eventId, rows }: { eventId: string; rows: Cat[] }
       ]}
       onSave={(fd) => { fd.set("eventId", eventId); return saveCategory(fd); }}
       onDelete={deleteCategory}
-    />
+    >
+      {rows.length === 0 && (
+        <>
+          <button
+            type="button" disabled={pending} className="btn-secondary disabled:opacity-40"
+            onClick={() => start(async () => {
+              const res = await addStandardCategories(eventId);
+              setError(res?.error ?? null);
+            })}
+          >
+            {pending ? "Adding" : "Add the four standard NIESV categories"}
+          </button>
+          {error && <p role="alert" className="w-full text-[13px] text-danger">{error}</p>}
+        </>
+      )}
+    </EditableList>
   );
 }
 
