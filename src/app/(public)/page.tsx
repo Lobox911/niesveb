@@ -53,7 +53,7 @@ export default async function Home() {
                 {
                   id: "fallback",
                   eyebrow: event?.eventType ?? null,
-                  title: event?.theme || event?.title || branch.branchName,
+                  title: event?.title || branch.branchName,
                   dateLine: event?.date ?? null,
                   ctaLabel: "Register now",
                   ctaHref: "/register",
@@ -71,7 +71,7 @@ export default async function Home() {
            one thing, and should not have to find it in the nav. Full width,
            directly under the hero, solid ink. */}
       <section className="border-y border-white/10 bg-ink">
-        <div className="container-content flex flex-wrap items-center justify-center gap-x-6 gap-y-2 pt-4 pb-14 text-center md:pb-16">
+        <div className="container-content flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 text-center">
           <Link
             href="/certificate"
             className="mono text-[14px] uppercase tracking-[0.15em] text-white underline-offset-4 hover:underline"
@@ -88,21 +88,57 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* 2. AT A GLANCE — the four facts every phone call asks about */}
-      <section className="container-content relative z-20 -mt-10 md:-mt-12">
-        <dl className="card grid grid-cols-2 divide-line md:grid-cols-4 md:divide-x">
-          {[
-            ["Date", event?.date ?? ""],
-            ["Venue", event?.venue ?? ""],
-            ["Format", "Hybrid"],
-            ["Deadline", event?.registrationDeadline ?? ""],
-          ].map(([k, v], i) => (
-            <div key={k} className={`p-5 ${i < 2 ? "border-b border-line md:border-b-0" : ""} ${i % 2 ? "border-l border-line md:border-l-0" : ""}`}>
-              <dt className="mono text-[12px] uppercase tracking-wider text-muted">{k}</dt>
-              <dd className={`mono mt-1.5 text-[15px] ${k === "Deadline" ? "text-gold" : "text-ink"}`}>{v}</dd>
+      {/* 2. EVENT DETAILS — the theme belongs here, not in the hero. It runs to
+           several lines and reads as a subject line rather than a headline.
+           The three cards answer the questions that otherwise become phone
+           calls: where, how to pay, and whether registration is required. */}
+      <section className="border-b border-line bg-white py-14 md:py-20">
+        <div className="container-content text-center">
+          <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">Event details</p>
+          <h2 className="mt-4 text-[30px] font-bold text-ink md:text-[38px]">
+            {event?.title ?? branch.branchName}
+          </h2>
+          {event?.theme && (
+            <p className="mx-auto mt-5 max-w-[46ch] text-[18px] font-semibold leading-relaxed text-ink md:text-[20px]">
+              Theme: {event.theme}
+            </p>
+          )}
+          {event?.date && (
+            <p className="mono mt-5 text-[17px] text-green">Date: {event.date}</p>
+          )}
+
+          <div className="mt-12 grid gap-5 text-left md:grid-cols-3">
+            <div className="card border-t-2 border-t-green p-6">
+              <h3 className="text-[17px] font-semibold text-ink">Venue</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                {event?.venueAddress || event?.venue || "To be announced"}
+              </p>
+              {event?.time && <p className="mono mt-3 text-[14px] text-muted">{event.time}</p>}
             </div>
-          ))}
-        </dl>
+
+            <div className="card border-t-2 border-t-gold p-6">
+              <h3 className="text-[17px] font-semibold text-ink">Bank details</h3>
+              <p className="mono mt-2 select-all text-[17px] text-ink">{branch.accountNumber}</p>
+              <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                {branch.bankName}
+                {branch.accountName ? <><br />{branch.accountName}</> : null}
+              </p>
+            </div>
+
+            <div className="card border-t-2 border-t-ink p-6">
+              <h3 className="text-[17px] font-semibold text-ink">Registration</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                Registration is mandatory for both physical and virtual
+                participants in order to secure your e-certificate.
+              </p>
+              {event?.registrationDeadline && (
+                <p className="mono mt-3 text-[14px] text-gold">
+                  Closes {event.registrationDeadline}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* 3. ABOUT — the flyer sits here as the right-hand column rather than

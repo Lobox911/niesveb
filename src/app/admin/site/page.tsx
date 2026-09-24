@@ -7,6 +7,7 @@ import LogoUpload from "../event/LogoUpload";
 import HeroBackground from "../event/HeroBackground";
 import HeroSlides from "./HeroSlides";
 import BannerUpload from "./BannerUpload";
+import Branding from "./Branding";
 import SectionNav from "../SectionNav";
 import { asc } from "drizzle-orm";
 import { heroSlides } from "@/db";
@@ -42,6 +43,7 @@ export default async function SitePage() {
           { id: "hero", label: "Hero background" },
           { id: "slides", label: "Hero slides" },
           { id: "banner", label: "Page banner" },
+          { id: "branding", label: "Branding and search" },
         ]}
       />
 
@@ -114,6 +116,17 @@ export default async function SitePage() {
         <BannerUpload
           current={s?.bannerImageUrl ?? null}
           alt={s?.bannerImageAlt ?? null}
+        />
+      </div>
+
+      <div id="branding" className="scroll-mt-24">
+        <Branding
+          metaTitle={s?.metaTitle ?? ""}
+          metaDescription={s?.metaDescription ?? ""}
+          faviconUrl={s?.faviconUrl ?? null}
+          ogImageUrl={s?.ogImageUrl ?? null}
+          primaryColor={s?.primaryColor ?? "#0B6E4F"}
+          accentColor={s?.accentColor ?? "#B08A2E"}
         />
       </div>
     </div>

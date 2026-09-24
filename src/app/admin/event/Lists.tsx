@@ -16,7 +16,7 @@ export function CategoryList({ eventId, rows }: { eventId: string; rows: Cat[] }
   return (
     <EditableList
       title="Participation categories"
-      description="Add, rename or remove categories, and set each fee and MCPD unit count. A category with registrations against it cannot be deleted."
+      description="Who can attend and what each pays. These become the dropdown on the registration form and the fee table on the home page."
       addLabel="Add a category"
       rows={rows.map((c) => ({
         ...c,
@@ -24,13 +24,11 @@ export function CategoryList({ eventId, rows }: { eventId: string; rows: Cat[] }
         detail: `${c.key} · ${naira(c.fee)} · ${c.units} units`,
       }))}
       fields={[
-        { name: "key", label: "Key", mono: true, width: "half", help: "Lowercase, hyphens. Used in registration links." },
-        { name: "sortOrder", label: "Order", type: "number", mono: true, width: "half" },
-        { name: "name", label: "Name" },
-        { name: "eligibility", label: "Who it is for" },
-        { name: "fee", label: "Fee in naira", type: "number", mono: true, width: "half" },
-        { name: "units", label: "MCPD units", type: "number", mono: true, width: "half" },
-        { name: "requiresMembershipNo", label: "Requires a NIESV membership number", type: "checkbox" },
+        { name: "name", label: "Category name", help: "As it appears on the fee table, for example: Fellows." },
+        { name: "fee", label: "Fee in naira", type: "number", mono: true, width: "half", help: "Digits only, for example 10000." },
+        { name: "units", label: "MCPD credit points", type: "number", mono: true, width: "half", help: "The flyer usually states this." },
+        { name: "eligibility", label: "Who it is for", help: "Optional. One short line shown under the name." },
+        { name: "requiresMembershipNo", label: "Ask for a NIESV membership number when someone picks this category", type: "checkbox" },
       ]}
       onSave={(fd) => { fd.set("eventId", eventId); return saveCategory(fd); }}
       onDelete={deleteCategory}
@@ -42,14 +40,13 @@ export function AdvertList({ eventId, rows }: { eventId: string; rows: Adv[] }) 
   return (
     <EditableList
       title="Brochure advert rates"
-      description="Placements shown in the advert table on the home page."
+      description="Optional. Advert placements in the event brochure, shown as a table on the home page. Leave empty if the branch is not selling adverts."
       addLabel="Add a placement"
       rows={rows.map((a) => ({ ...a, summary: a.placement, detail: naira(a.rate) }))}
       fields={[
-        { name: "placement", label: "Placement" },
-        { name: "spec", label: "Specification", help: "Optional, for example: full page, colour." },
-        { name: "rate", label: "Rate in naira", type: "number", mono: true, width: "half" },
-        { name: "sortOrder", label: "Order", type: "number", mono: true, width: "half" },
+        { name: "placement", label: "Placement", help: "For example: Full page (back cover)." },
+        { name: "rate", label: "Rate in naira", type: "number", mono: true, help: "Digits only." },
+        { name: "spec", label: "Specification", help: "Optional, for example: full colour, A4." },
       ]}
       onSave={(fd) => { fd.set("eventId", eventId); return saveAdvertRate(fd); }}
       onDelete={deleteAdvertRate}
@@ -70,7 +67,6 @@ export function ProgrammeList({ eventId, rows }: { eventId: string; rows: Prog[]
       }))}
       fields={[
         { name: "timeLabel", label: "Time", mono: true, width: "half", help: "For example: 09:30." },
-        { name: "sortOrder", label: "Order", type: "number", mono: true, width: "half" },
         { name: "title", label: "Session title" },
         { name: "speaker", label: "Speaker", help: "Leave blank to show 'Speaker to be announced'." },
         { name: "isBreak", label: "This is a break, not a session", type: "checkbox" },

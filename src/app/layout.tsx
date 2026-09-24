@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Source_Serif_4, Inter_Tight, IBM_Plex_Mono } from "next/font/google";
-import { event } from "@/lib/event";
+import { getBranch, getFeaturedEvent, hexToRgbTriplet } from "@/lib/site";
 import "./globals.css";
 
 /**
@@ -33,20 +33,54 @@ const mono = IBM_Plex_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: { default: `${event.eventTitle} — ${event.branch}`, template: `%s — ${event.branch}` },
-  description: `${event.eventTitle}. ${event.theme}. ${event.date}, ${event.venue}.`,
-  robots: { index: true, follow: true },
-};
+/** Title, description, favicon and share image all come from the database so
+ *  the branch can tune them without a deploy. Each falls back to the featured
+ *  event, so a blank field never produces an empty tag. */
+export async function generateMetadata(): Promise<Metadata> {
+  const [branch, featured] = await Promise.all([getBranch(), getFeaturedEvent()]);
+
+  const title = branch.metaTitle || (featured ? `${featured.title} — ${branch.branchName}` : branch.branchName);
+  const description =
+    branch.metaDescription ||
+    (featured
+      ? `${featured.title}. ${featured.theme}. ${featured.venue}.`
+      : branch.branchName);
+
+  return {
+    title: { default: title, template: `%s — ${branch.branchName}` },
+    description,
+    robots: { index: true, follow: true },
+    icons: branch.faviconUrl ? { icon: branch.faviconUrl } : undefined,
+    openGraph: {
+      title,
+      description,
+      images: branch.ogImageUrl ? [branch.ogImageUrl] : undefined,
+    },
+  };
+}
 
 /**
  * Root layout holds only the document shell and fonts.
  * Header and Footer live in (public)/layout.tsx so the admin does NOT
  * inherit the public navigation.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const branch = await getBranch();
+
+  // Only the two brand colours are overridable. They are written as RGB
+  // triplets so Tailwind's opacity modifiers keep working.
+  const primary = hexToRgbTriplet(branch.primaryColor);
+  const accent = hexToRgbTriplet(branch.accentColor);
+  const overrides = [
+    primary && `--green-rgb: ${primary};`,
+    accent && `--gold-rgb: ${accent};`,
+  ].filter(Boolean).join(" ");
+
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <head>
+        {overrides && <style>{`:root { ${overrides} }`}</style>}
+      </head>
       <body>{children}</body>
     </html>
   );

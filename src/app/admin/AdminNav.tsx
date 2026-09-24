@@ -8,6 +8,7 @@ const NAV: [string, string, boolean][] = [
   ["/admin/attendance", "Attendance desk", false],
   ["/admin/events", "Events", true],
   ["/admin/site", "Site settings", true],
+  ["/admin/officers", "Users", true],
   ["/admin/audit", "Activity log", true],
 ];
 

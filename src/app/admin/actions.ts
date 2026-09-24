@@ -3,10 +3,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import {
-  db, registrations, attendance, auditLog, branchSettings, events, categories,
+  db, registrations, attendance, auditLog, branchSettings, events, categories, officers,
   heroSlides, advertRates, programmeItems,
 } from "@/db";
-import { authenticate, createSession, destroySession, requireOfficer } from "@/lib/auth";
+import { authenticate, createSession, destroySession, requireOfficer, hashPassword } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
 import { put, del } from "@vercel/blob";
 
@@ -394,11 +394,22 @@ export async function saveCategory(formData: FormData) {
 
   const id = String(formData.get("id") ?? "").trim();
   const eventId = String(formData.get("eventId") ?? "").trim();
-  const key = String(formData.get("key") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   if (!eventId) return { error: "No event selected." };
-  if (!key || !name) return { error: "A category needs a key and a name." };
-  if (!/^[a-z0-9-]+$/.test(key)) return { error: "The key may use lowercase letters, numbers and hyphens only." };
+  if (!name) return { error: "A category needs a name." };
+
+  // The key is derived from the name rather than typed. It only exists so
+  // registration links read /register?category=fellows, and asking a branch
+  // officer to invent one was exposing plumbing.
+  const key =
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "category";
+
+  // Order follows the order rows were added, so nobody has to manage numbers.
+  const existingCount = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(categories)
+    .where(eq(categories.eventId, eventId));
+  const nextOrder = existingCount[0]?.n ?? 0;
 
   const values = {
     eventId,
@@ -408,7 +419,7 @@ export async function saveCategory(formData: FormData) {
     feeKobo: Math.round(Number(formData.get("fee") ?? 0) * 100),
     units: Number(formData.get("units") ?? 0) || 0,
     requiresMembershipNo: formData.get("requiresMembershipNo") === "on",
-    sortOrder: Number(formData.get("sortOrder") ?? 0) || 0,
+    ...(id ? {} : { sortOrder: nextOrder }),
   };
 
   if (id) {
@@ -605,5 +616,114 @@ export async function removeBanner() {
 
   await audit(officer.id, "remove_banner", "branch_settings", "1");
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ---------- branding assets and SEO ---------- */
+
+export async function updateBranding(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change branding." };
+
+  const hex = (k: string) => {
+    const v = String(formData.get(k) ?? "").trim();
+    return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : null;
+  };
+
+  const primary = hex("primaryColor");
+  const accent = hex("accentColor");
+  if (formData.has("primaryColor") && !primary) return { error: "Enter the primary colour as a six-digit hex value, for example #0B6E4F." };
+  if (formData.has("accentColor") && !accent) return { error: "Enter the accent colour as a six-digit hex value, for example #B08A2E." };
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if (formData.has("metaTitle")) patch.metaTitle = String(formData.get("metaTitle") ?? "").trim() || null;
+  if (formData.has("metaDescription")) patch.metaDescription = String(formData.get("metaDescription") ?? "").trim() || null;
+  if (primary) patch.primaryColor = primary;
+  if (accent) patch.accentColor = accent;
+
+  const upload = async (field: string, prefix: string, types: string[], maxMb: number) => {
+    const file = formData.get(field);
+    if (!(file instanceof File) || file.size === 0) return null;
+    if (!types.includes(file.type)) return { error: `That ${prefix} file type is not accepted.` };
+    if (file.size > maxMb * 1024 * 1024) return { error: `That ${prefix} is larger than ${maxMb}MB.` };
+    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
+    return put(`${prefix}/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
+  };
+
+  const fav = await upload("favicon", "favicon", ["image/png", "image/x-icon", "image/vnd.microsoft.icon", "image/svg+xml"], 1);
+  if (fav && "error" in fav) return fav;
+  if (fav) { patch.faviconUrl = fav.url; patch.faviconPath = fav.pathname; }
+
+  const og = await upload("ogImage", "og", ["image/jpeg", "image/png", "image/webp"], 3);
+  if (og && "error" in og) return og;
+  if (og) { patch.ogImageUrl = og.url; patch.ogImagePath = og.pathname; }
+
+  await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
+  await audit(officer.id, "update_branding", "branch_settings", "1", { fields: Object.keys(patch) });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/* ---------- officers ---------- */
+
+export async function createOfficer(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can add users." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const role = String(formData.get("role") ?? "officer") === "admin" ? "admin" : "officer";
+
+  if (!name) return { error: "Enter the person's name." };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Enter a valid email address." };
+  if (password.length < 10) return { error: "The password must be at least 10 characters." };
+
+  const existing = await db.select().from(officers).where(eq(officers.email, email)).limit(1);
+  if (existing[0]) return { error: "An account already exists with that email address." };
+
+  await db.insert(officers).values({ name, email, passwordHash: hashPassword(password), role });
+  await audit(officer.id, "create_officer", "officers", email, { role });
+  revalidatePath("/admin/officers");
+  return { ok: true };
+}
+
+export async function setOfficerActive(id: string, active: boolean) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change users." };
+  // Deactivating yourself locks you out of the admin immediately.
+  if (id === officer.id) return { error: "You cannot deactivate your own account." };
+
+  await db.update(officers).set({ active }).where(eq(officers.id, id));
+  await audit(officer.id, active ? "activate_officer" : "deactivate_officer", "officers", id);
+  revalidatePath("/admin/officers");
+  return { ok: true };
+}
+
+export async function setOfficerRole(id: string, role: "officer" | "admin") {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change users." };
+  if (id === officer.id) return { error: "You cannot change your own role." };
+
+  await db.update(officers).set({ role }).where(eq(officers.id, id));
+  await audit(officer.id, "set_officer_role", "officers", id, { role });
+  revalidatePath("/admin/officers");
+  return { ok: true };
+}
+
+/** Anyone can change their own password; an admin can reset someone else's. */
+export async function changePassword(formData: FormData) {
+  const officer = await requireOfficer();
+  const targetId = String(formData.get("officerId") ?? "") || officer.id;
+  const password = String(formData.get("password") ?? "");
+
+  if (targetId !== officer.id && officer.role !== "admin") {
+    return { error: "Only a branch administrator can reset another user's password." };
+  }
+  if (password.length < 10) return { error: "The password must be at least 10 characters." };
+
+  await db.update(officers).set({ passwordHash: hashPassword(password) }).where(eq(officers.id, targetId));
+  await audit(officer.id, "change_password", "officers", targetId);
+  revalidatePath("/admin/officers");
   return { ok: true };
 }

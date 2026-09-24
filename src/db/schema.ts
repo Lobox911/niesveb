@@ -52,6 +52,22 @@ export const branchSettings = pgTable("branch_settings", {
   bannerImagePath: text("banner_image_path"),
   bannerImageAlt: text("banner_image_alt"),
 
+  /* Search and sharing. metaTitle/Description fall back to the featured
+     event when blank, so an empty field is never an empty <title>. */
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  faviconUrl: text("favicon_url"),
+  faviconPath: text("favicon_path"),
+  ogImageUrl: text("og_image_url"),
+  ogImagePath: text("og_image_path"),
+
+  /* Only the two brand colours are editable. The remaining five in the
+     palette (ink, paper, line, muted, danger) stay fixed because they carry
+     the contrast guarantees for body text, and a branch cannot check those
+     by eye across every page. */
+  primaryColor: text("primary_color").notNull().default("#0B6E4F"),
+  accentColor: text("accent_color").notNull().default("#B08A2E"),
+
   /* One account for every event, per the branch. */
   bankName: text("bank_name"),
   accountName: text("account_name"),

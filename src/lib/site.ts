@@ -44,6 +44,12 @@ export async function getBranch() {
     heroTextTone: (b?.heroTextTone === "light" ? "light" : "dark") as "light" | "dark",
     bannerImageUrl: b?.bannerImageUrl ?? null,
     bannerImageAlt: b?.bannerImageAlt ?? null,
+    metaTitle: b?.metaTitle || "",
+    metaDescription: b?.metaDescription || "",
+    faviconUrl: b?.faviconUrl ?? null,
+    ogImageUrl: b?.ogImageUrl ?? null,
+    primaryColor: b?.primaryColor || "#0B6E4F",
+    accentColor: b?.accentColor || "#B08A2E",
     bankName: b?.bankName || "",
     accountName: b?.accountName || "",
     accountNumber: b?.accountNumber || "",
@@ -147,3 +153,23 @@ export async function getEventView(event: typeof events.$inferSelect) {
 
 export type BranchView = Awaited<ReturnType<typeof getBranch>>;
 export type EventView = Awaited<ReturnType<typeof getEventView>>;
+
+/** "#0B6E4F" -> "11 110 79" for the rgb(var(--x) / <alpha-value>) tokens. */
+export function hexToRgbTriplet(hex: string): string | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+}
+
+/** Relative luminance, for deciding whether white text holds on a colour. */
+export function contrastWithWhite(hex: string): number {
+  const t = hexToRgbTriplet(hex);
+  if (!t) return 0;
+  const [r, g, b] = t.split(" ").map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return 1.05 / (L + 0.05);
+}
