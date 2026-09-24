@@ -44,6 +44,7 @@ export default async function Home() {
           backgroundAlt={event.heroImageAlt}
           tone={event.heroTextTone}
           fallbackDate={event.date}
+          fallbackEyebrow={event.eventType}
         />
       ) : (
         <section className="relative overflow-hidden bg-ink">

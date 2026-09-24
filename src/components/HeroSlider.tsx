@@ -32,12 +32,14 @@ export default function HeroSlider({
   backgroundAlt,
   tone = "dark",
   fallbackDate,
+  fallbackEyebrow,
 }: {
   slides: Slide[];
   backgroundUrl?: string | null;
   backgroundAlt?: string | null;
   tone?: "dark" | "light";
   fallbackDate?: string | null;
+  fallbackEyebrow?: string | null;
 }) {
   const [i, setI] = useState(0);
   const touchX = useRef<number | null>(null);
@@ -56,7 +58,11 @@ export default function HeroSlider({
   const s = slides[i];
   if (!s) return null;
 
+  // Every slide shows the same set of lines. A blank field falls back to the
+  // branch setting rather than silently dropping the row, so slide two does
+  // not look different from slide one because someone skipped a box.
   const dateLine = s.dateLine || fallbackDate || null;
+  const eyebrow = s.eyebrow || fallbackEyebrow || null;
 
   // With no background the section falls back to solid ink, where light text
   // is the only readable option whatever tone is stored.
@@ -96,12 +102,12 @@ export default function HeroSlider({
 
       <div className="container-content relative z-10 w-full py-16 md:py-20">
         <div aria-live="polite" aria-atomic="true">
-          {s.eyebrow && (
+          {eyebrow && (
             <p className={`flex items-center gap-2 text-[16px] font-medium ${textColour}`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-gold" aria-hidden>
                 <path d="M12 3 2 11h3v9h6v-6h2v6h6v-9h3L12 3Z" />
               </svg>
-              {s.eyebrow}
+              {eyebrow}
             </p>
           )}
 
@@ -167,7 +173,7 @@ export default function HeroSlider({
             type="button"
             aria-label="Previous event"
             onClick={() => setI((n) => (n - 1 + slides.length) % slides.length)}
-            className="absolute left-0 top-1/2 z-20 hidden h-14 w-14 -translate-y-1/2 place-items-center bg-white text-[22px] text-ink hover:bg-paper md:grid"
+            className="absolute left-5 top-1/2 z-20 hidden h-14 w-14 -translate-y-1/2 place-items-center rounded bg-white text-[22px] text-ink shadow-none hover:bg-paper md:grid lg:left-8"
           >
             <span aria-hidden>←</span>
           </button>
@@ -175,7 +181,7 @@ export default function HeroSlider({
             type="button"
             aria-label="Next event"
             onClick={() => setI((n) => (n + 1) % slides.length)}
-            className="absolute right-0 top-1/2 z-20 hidden h-14 w-14 -translate-y-1/2 place-items-center bg-white text-[22px] text-ink hover:bg-paper md:grid"
+            className="absolute right-5 top-1/2 z-20 hidden h-14 w-14 -translate-y-1/2 place-items-center rounded bg-white text-[22px] text-ink shadow-none hover:bg-paper md:grid lg:right-8"
           >
             <span aria-hidden>→</span>
           </button>

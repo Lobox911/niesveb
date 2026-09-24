@@ -184,6 +184,9 @@ export const eventSettings = pgTable("event_settings", {
      A setting rather than a guess, because only the branch can see the
      image they chose. */
   heroTextTone: text("hero_text_tone").notNull().default("dark"),
+  /* Shown as the hero eyebrow on any slide that does not set its own, so the
+     line never disappears just because a field was left blank. */
+  eventType: text("event_type").default("Hybrid event"),
 
   /* Seminar flyer, stored in Vercel Blob.
      flyerUrl is what the page renders. flyerPath is the blob pathname,

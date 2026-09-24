@@ -73,6 +73,7 @@ export async function getSiteData() {
     heroImageUrl: s?.heroImageUrl ?? null,
     heroImageAlt: s?.heroImageAlt ?? null,
     heroTextTone: (s?.heroTextTone === "light" ? "light" : "dark") as "light" | "dark",
+    eventType: s?.eventType || "Hybrid event",
     flyerUrl: s?.flyerUrl ?? null,
     flyerAlt: s?.flyerAlt ?? null,
 

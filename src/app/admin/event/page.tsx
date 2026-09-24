@@ -5,15 +5,17 @@ import {
   db, eventSettings, categories, heroSlides, advertRates, programmeItems,
 } from "@/db";
 import { requireOfficer } from "@/lib/auth";
-import EventSettingsForm from "./EventSettingsForm";
-import LogoUpload from "./LogoUpload";
+import SettingsForm from "../SettingsForm";
 import FlyerUpload from "./FlyerUpload";
 import HeroSlides from "./HeroSlides";
-import HeroBackground from "./HeroBackground";
 import { CategoryList, AdvertList, ProgrammeList } from "./Lists";
 
 export const metadata: Metadata = { title: "Event settings" };
 
+/**
+ * Everything that changes from one seminar to the next. Branch identity and
+ * contact details live on the site settings page instead.
+ */
 export default async function EventPage() {
   const officer = await requireOfficer();
   if (officer.role !== "admin") redirect("/admin");
@@ -34,17 +36,18 @@ export default async function EventPage() {
     <div className="p-6 lg:p-10">
       <h1 className="text-[26px] text-ink">Event settings</h1>
       <p className="mt-1 max-w-prose text-[15px] text-muted">
-        Everything on this page appears on the public site and takes effect
-        immediately. Nothing here needs a developer.
+        This year&rsquo;s seminar. Everything here appears on the public site
+        and takes effect immediately.
       </p>
 
-      <EventSettingsForm
+      <SettingsForm
+        submitLabel="Save event settings"
         initial={{
-          branchName: s?.branchName ?? "",
-          registeredAddress: s?.registeredAddress ?? "",
           eventTitle: s?.eventTitle ?? "",
           theme: s?.theme ?? "",
+          eventType: s?.eventType ?? "",
           startsAt: iso(s?.startsAt),
+          endsAt: iso(s?.endsAt),
           timeLine: s?.timeLine ?? "",
           registrationDeadline: iso(s?.registrationDeadline),
           venue: s?.venue ?? "",
@@ -54,14 +57,39 @@ export default async function EventPage() {
           accountNumber: s?.accountNumber ?? "",
           meetingUrl: s?.meetingUrl ?? "",
           meetingId: s?.meetingId ?? "",
-          supportWhatsapp: s?.supportWhatsapp ?? "",
-          contactEmail: s?.contactEmail ?? "",
-          contactPhones: s?.contactPhones ?? "",
-          aboutBody: s?.aboutBody ?? "",
         }}
+        groups={[
+          {
+            legend: "The seminar",
+            fields: [
+              { name: "eventTitle", label: "Event title" },
+              { name: "theme", label: "Theme", help: "The headline on the home page." },
+              { name: "eventType", label: "Event type", help: "Shown above the hero title, for example: Hybrid event." },
+              { name: "startsAt", label: "Starts at", type: "datetime-local" },
+              { name: "endsAt", label: "Ends at", type: "datetime-local", help: "For a two-day seminar. Leave blank for a single day." },
+              { name: "timeLine", label: "Time, as written", help: "For example: 09:00 WAT daily." },
+              { name: "registrationDeadline", label: "Registration deadline", type: "datetime-local" },
+              { name: "venue", label: "Venue" },
+              { name: "venueAddress", label: "Venue address", help: "Used for search listings and maps." },
+            ],
+          },
+          {
+            legend: "Bank details",
+            fields: [
+              { name: "bankName", label: "Bank name" },
+              { name: "accountName", label: "Account name" },
+              { name: "accountNumber", label: "Account number", mono: true, help: "Check this digit by digit. Participants copy it straight into their banking app." },
+            ],
+          },
+          {
+            legend: "Virtual session",
+            fields: [
+              { name: "meetingUrl", label: "Meeting link", type: "url" },
+              { name: "meetingId", label: "Meeting ID" },
+            ],
+          },
+        ]}
       />
-
-      <LogoUpload current={s?.logoUrl ?? null} />
 
       <CategoryList
         rows={cats.map((c) => ({
@@ -83,12 +111,6 @@ export default async function EventPage() {
           id: p.id, timeLabel: p.timeLabel, title: p.title,
           speaker: p.speaker ?? "", isBreak: p.isBreak, sortOrder: p.sortOrder,
         }))}
-      />
-
-      <HeroBackground
-        current={s?.heroImageUrl ?? null}
-        alt={s?.heroImageAlt ?? null}
-        tone={s?.heroTextTone ?? "dark"}
       />
 
       <HeroSlides rows={slides} />

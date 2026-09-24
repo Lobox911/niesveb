@@ -125,41 +125,61 @@ export async function markAttendance(rawPasscode: string, method: "desk" | "qr" 
 
 /* ---------- event settings ---------- */
 
-export async function updateEventSettings(formData: FormData) {
+/**
+ * Writes only the fields present in the submitted form.
+ *
+ * Site settings and event settings are separate pages now, so each posts a
+ * subset. Writing every column unconditionally would let the site form null
+ * out the event form's values and vice versa.
+ */
+export async function updateSettings(formData: FormData) {
   const officer = await requireOfficer();
-  if (officer.role !== "admin") return { error: "Only a branch administrator can change event settings." };
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change settings." };
 
-  const s = (k: string) => String(formData.get(k) ?? "").trim();
-  const startsAt = new Date(s("startsAt"));
-  if (Number.isNaN(startsAt.getTime())) return { error: "Enter a valid start date and time." };
+  const TEXT_FIELDS = [
+    "branchName", "registeredAddress", "eventTitle", "theme", "eventType",
+    "timeLine", "venue", "venueAddress", "bankName", "accountName",
+    "accountNumber", "meetingUrl", "meetingId", "supportWhatsapp",
+    "contactEmail", "contactPhones", "aboutBody",
+  ] as const;
 
-  const deadlineRaw = s("registrationDeadline");
-  const values = {
-    eventTitle: s("eventTitle"),
-    theme: s("theme"),
-    startsAt,
-    registrationDeadline: deadlineRaw ? new Date(deadlineRaw) : null,
-    venue: s("venue"),
-    venueAddress: s("venueAddress"),
-    bankName: s("bankName"),
-    accountName: s("accountName"),
-    accountNumber: s("accountNumber"),
-    meetingUrl: s("meetingUrl") || null,
-    meetingId: s("meetingId") || null,
-    supportWhatsapp: s("supportWhatsapp") || null,
-    contactEmail: s("contactEmail") || null,
-    contactPhones: s("contactPhones") || null,
-    branchName: s("branchName") || null,
-    registeredAddress: s("registeredAddress") || null,
-    timeLine: s("timeLine") || null,
-    aboutBody: s("aboutBody") || null,
-    updatedAt: new Date(),
-  };
+  const DATE_FIELDS = ["startsAt", "endsAt", "registrationDeadline"] as const;
 
-  await db.insert(eventSettings).values({ id: 1, ...values })
-    .onConflictDoUpdate({ target: eventSettings.id, set: values });
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
 
-  await audit(officer.id, "update_event_settings", "event_settings", "1");
+  for (const key of TEXT_FIELDS) {
+    if (!formData.has(key)) continue;
+    const v = String(formData.get(key) ?? "").trim();
+    patch[key] = v || null;
+  }
+
+  for (const key of DATE_FIELDS) {
+    if (!formData.has(key)) continue;
+    const raw = String(formData.get(key) ?? "").trim();
+    if (!raw) { patch[key] = null; continue; }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return { error: `Enter a valid date for ${key}.` };
+    patch[key] = d;
+  }
+
+  // The row always exists after seeding, but an insert keeps a fresh database
+  // from failing silently on the first save.
+  await db
+    .insert(eventSettings)
+    .values({
+      id: 1,
+      eventTitle: String(patch.eventTitle ?? "MCPD Seminar"),
+      theme: String(patch.theme ?? ""),
+      startsAt: (patch.startsAt as Date) ?? new Date(),
+      venue: String(patch.venue ?? ""),
+      bankName: String(patch.bankName ?? ""),
+      accountName: String(patch.accountName ?? ""),
+      accountNumber: String(patch.accountNumber ?? ""),
+      ...patch,
+    })
+    .onConflictDoUpdate({ target: eventSettings.id, set: patch });
+
+  await audit(officer.id, "update_settings", "event_settings", "1", { fields: Object.keys(patch) });
   revalidatePath("/", "layout");
   return { ok: true };
 }

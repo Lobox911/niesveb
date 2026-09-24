@@ -7,6 +7,8 @@ const NAV: [string, string, boolean][] = [
   ["/admin", "Dashboard", false],
   ["/admin/attendance", "Attendance desk", false],
   ["/admin/event", "Event settings", true],
+  ["/admin/site", "Site settings", true],
+  ["/admin/audit", "Activity log", true],
 ];
 
 export default function AdminNav({ role }: { role: "officer" | "admin" }) {
