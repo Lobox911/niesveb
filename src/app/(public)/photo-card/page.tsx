@@ -8,13 +8,23 @@ export default function PhotoCardPage() {
   return (
     <>
       <PageBanner title="Photo card" crumb="Photo card" />
-      <div className="container-content py-14">
-        <p className="mx-auto mb-8 max-w-prose text-center text-[15px] text-muted">
-          Enter your passcode to upload a portrait and generate a printable
-          participant card.
-        </p>
-        {/* TODO: on valid code, advance to upload → crop → preview (steps 2 and 3) */}
-        <PasscodeGate cta="Continue" />
+      <div className="container-content py-12 md:py-16">
+        <section className="max-w-prose">
+          <h2 className="text-[20px] text-ink">Picture upload and printing</h2>
+          <p className="mt-5 text-[17px] leading-relaxed text-muted">
+            Dear participant,
+          </p>
+          <p className="mt-4 text-[17px] leading-relaxed text-muted">
+            Enter your registration code correctly to continue. You will then
+            upload a portrait, and the portal produces a participant card you
+            can print or keep on your phone for the venue.
+          </p>
+        </section>
+
+        {/* TODO: on a valid code, advance to upload → crop → preview */}
+        <div className="mt-10">
+          <PasscodeGate cta="Continue" />
+        </div>
       </div>
     </>
   );

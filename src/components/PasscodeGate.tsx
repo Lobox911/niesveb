@@ -7,8 +7,8 @@ import { useState } from "react";
  * rather than saying "invalid".
  */
 export default function PasscodeGate({
-  onSubmit, cta = "Continue",
-}: { onSubmit?: (code: string) => void; cta?: string }) {
+  onSubmit, cta = "Continue", label = "Registration code",
+}: { onSubmit?: (code: string) => void; cta?: string; label?: string }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -18,19 +18,19 @@ export default function PasscodeGate({
   };
 
   return (
-    <div className="card mx-auto max-w-[480px] p-6">
-      <label className="label" htmlFor="passcode">Registration passcode</label>
+    <div className="max-w-[480px]">
+      <label className="label" htmlFor="passcode">{label}</label>
       <input
         id="passcode"
         className="field-mono text-[20px] tracking-[0.18em]"
         value={code}
-        placeholder="EBY4-9K7C"
+        placeholder="Example EBY4-9K7C"
         autoComplete="off"
         aria-describedby="passcode-help"
         onChange={(e) => { setCode(format(e.target.value)); setError(null); }}
       />
       <p id="passcode-help" className="help">
-        Eight characters, sent to you by email and SMS when you registered.
+        Eight characters, sent to you by email when you registered.
       </p>
 
       {error && (
@@ -39,7 +39,7 @@ export default function PasscodeGate({
 
       <button
         type="button"
-        className="btn-primary mt-4 w-full"
+        className="btn-primary mt-5 min-h-[50px] px-8"
         onClick={() => {
           if (code.replace("-", "").length < 8) {
             setError("That passcode is incomplete. It has eight characters, for example EBY4-9K7C.");

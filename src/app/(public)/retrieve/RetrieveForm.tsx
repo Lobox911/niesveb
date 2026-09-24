@@ -8,19 +8,19 @@ export default function RetrieveForm() {
   const [state, setState] = useState<"idle" | "found" | "none">("idle");
 
   return (
-    <div className="mx-auto max-w-[480px]">
+    <div className="max-w-[480px]">
       {state !== "found" && (
-        <div className="card p-6">
-          <label className="label" htmlFor="q">Membership number or registered email</label>
+        <div>
+          <label className="label" htmlFor="q">Membership number or email</label>
           <input
-            id="q" className="field-mono" value={q}
+            id="q" className="field-mono" value={q} placeholder="Example FL01008, G07854, M02598"
             onChange={(e) => { setQ(e.target.value); setState("idle"); }}
             aria-describedby="q-help"
           />
           <p id="q-help" className="help">Either one works.</p>
           <button
             type="button"
-            className="btn-primary mt-4 w-full"
+            className="btn-primary mt-5 min-h-[50px] px-8"
             onClick={() => setState(q.trim() ? "found" : "none")}
           >
             Find my registration
