@@ -334,9 +334,6 @@ export async function saveHeroSlide(formData: FormData) {
     published: formData.get("published") === "on",
   };
 
-  const eventId = String(formData.get("eventId") ?? "").trim();
-  values.eventId = eventId || null;
-
   if (id) {
     await db.update(heroSlides).set(values).where(eq(heroSlides.id, id));
     await audit(officer.id, "update_hero_slide", "hero_slides", id);

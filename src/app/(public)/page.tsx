@@ -42,52 +42,30 @@ export default async function Home() {
       {/* 1. HERO — a slider when the branch has published upcoming events,
            otherwise the static theme hero. The fallback matters: the page must
            never depend on a slide existing. */}
-      {slides.length > 0 ? (
-        <HeroSlider
-          slides={slides}
-          backgroundUrl={branch.heroImageUrl}
-          backgroundAlt={branch.heroImageAlt}
-          tone={branch.heroTextTone}
-          fallbackDate={event?.date ?? ""}
-          fallbackEyebrow={event?.eventType}
-        />
-      ) : (
-        <section className="relative overflow-hidden bg-ink">
-          <div className="container-content relative z-10 py-16 md:py-24">
-            <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">
-              {event?.title} / Hybrid
-            </p>
-            <h1 className="mt-5 max-w-[18ch] text-[30px] leading-[1.15] text-white md:text-[46px]">
-              {event?.theme ?? ""}
-            </h1>
-
-            <dl className="mt-9 max-w-[420px]">
-              {[
-                ["Date", event?.date ?? ""],
-                ["Time", event?.time ?? ""],
-                ["Venue", event?.venue ?? ""],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-6 border-b border-gold/30 py-3">
-                  <dt className="mono text-[13px] uppercase tracking-wider text-white/60">{k}</dt>
-                  <dd className="mono text-[15px] text-white">{v}</dd>
-                </div>
-              ))}
-            </dl>
-
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/register" className="btn-primary">Register now</Link>
-              <Link href="/join" className="btn-onink">Join online</Link>
-            </div>
-          </div>
-
-          <span
-            aria-hidden
-            className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 translate-x-1/4 select-none font-[var(--font-display)] text-[280px] leading-none text-white/[0.06] lg:block"
-          >
-            EB
-          </span>
-        </section>
-      )}
+      <HeroSlider
+        slides={
+          slides.length > 0
+            ? slides
+            : [
+                // No published slides: the seminar itself becomes the slide, so
+                // the hero keeps one implementation rather than a second layout
+                // that drifts out of step.
+                {
+                  id: "fallback",
+                  eyebrow: event?.eventType ?? null,
+                  title: event?.theme || event?.title || branch.branchName,
+                  dateLine: event?.date ?? null,
+                  ctaLabel: "Register now",
+                  ctaHref: "/register",
+                },
+              ]
+        }
+        backgroundUrl={branch.heroImageUrl}
+        backgroundAlt={branch.heroImageAlt}
+        tone={branch.heroTextTone}
+        fallbackDate={event?.date ?? ""}
+        fallbackEyebrow={event?.eventType}
+      />
 
       {/* 1b. CERTIFICATE BAND — a returning participant comes back for exactly
            one thing, and should not have to find it in the nav. Full width,

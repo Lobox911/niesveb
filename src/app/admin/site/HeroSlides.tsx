@@ -7,19 +7,13 @@ export type SlideRow = {
   eyebrow: string | null;
   title: string;
   dateLine: string | null;
-  eventId: string | null;
   ctaLabel: string | null;
   ctaHref: string | null;
   sortOrder: number;
   published: boolean;
 };
 
-export default function HeroSlides({
-  rows, events,
-}: {
-  rows: SlideRow[];
-  events: { id: string; title: string }[];
-}) {
+export default function HeroSlides({ rows }: { rows: SlideRow[] }) {
   const [editing, setEditing] = useState<SlideRow | "new" | null>(null);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
@@ -91,19 +85,6 @@ export default function HeroSlides({
                 placeholder="MCPD Seminar 2026 / Hybrid"
                 defaultValue={editing === "new" ? "" : editing.eyebrow ?? ""} />
             </div>
-            <div>
-              <label className="label" htmlFor="eventId">Event this slide promotes</label>
-              <select id="eventId" name="eventId" className="field"
-                defaultValue={editing === "new" ? "" : editing.eventId ?? ""}>
-                <option value="">None — link goes wherever the button points</option>
-                {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
-              </select>
-              <p className="help">
-                With several events open at once, this is how a participant reaches
-                the one the home page is not featuring.
-              </p>
-            </div>
-
             <div>
               <label className="label" htmlFor="dateLine">Date</label>
               <input id="dateLine" name="dateLine" className="field"

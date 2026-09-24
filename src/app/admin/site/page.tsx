@@ -5,6 +5,10 @@ import { requireOfficer } from "@/lib/auth";
 import SettingsForm from "../SettingsForm";
 import LogoUpload from "../event/LogoUpload";
 import HeroBackground from "../event/HeroBackground";
+import HeroSlides from "./HeroSlides";
+import SectionNav from "../SectionNav";
+import { asc } from "drizzle-orm";
+import { heroSlides } from "@/db";
 
 export const metadata: Metadata = { title: "Site settings" };
 
@@ -16,7 +20,10 @@ export default async function SitePage() {
   const officer = await requireOfficer();
   if (officer.role !== "admin") redirect("/admin");
 
-  const rows = await db.select().from(branchSettings).limit(1);
+  const [rows, slides] = await Promise.all([
+    db.select().from(branchSettings).limit(1),
+    db.select().from(heroSlides).orderBy(asc(heroSlides.sortOrder)),
+  ]);
   const s = rows[0];
 
   return (
@@ -27,6 +34,16 @@ export default async function SitePage() {
         to every event.
       </p>
 
+      <SectionNav
+        items={[
+          { id: "branch", label: "Branch" },
+          { id: "crest", label: "Crest" },
+          { id: "hero", label: "Hero background" },
+          { id: "slides", label: "Hero slides" },
+        ]}
+      />
+
+      <div id="branch" className="scroll-mt-24">
       <SettingsForm
         submitLabel="Save site settings"
         initial={{
@@ -73,13 +90,23 @@ export default async function SitePage() {
         ]}
       />
 
-      <LogoUpload current={s?.logoUrl ?? null} />
+      </div>
 
-      <HeroBackground
-        current={s?.heroImageUrl ?? null}
-        alt={s?.heroImageAlt ?? null}
-        tone={s?.heroTextTone ?? "dark"}
-      />
+      <div id="crest" className="scroll-mt-24">
+        <LogoUpload current={s?.logoUrl ?? null} />
+      </div>
+
+      <div id="hero" className="scroll-mt-24">
+        <HeroBackground
+          current={s?.heroImageUrl ?? null}
+          alt={s?.heroImageAlt ?? null}
+          tone={s?.heroTextTone ?? "dark"}
+        />
+      </div>
+
+      <div id="slides" className="scroll-mt-24">
+        <HeroSlides rows={slides} />
+      </div>
     </div>
   );
 }

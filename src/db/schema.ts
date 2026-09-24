@@ -139,13 +139,13 @@ export const programmeItems = pgTable(
   (t) => [index("programme_event_idx").on(t.eventId, t.sortOrder)],
 );
 
-/** A slide promotes one event. With several events open at once this is how a
- *  participant reaches the one the home page is not featuring. */
+/** Site-level hero slides. Deliberately not tied to an event: the branch uses
+ *  them for whatever they want to promote, and the button link decides where
+ *  each one goes. Managed under Site settings, not Event settings. */
 export const heroSlides = pgTable(
   "hero_slides",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }),
     eyebrow: text("eyebrow"),
     title: text("title").notNull(),
     dateLine: text("date_line"),

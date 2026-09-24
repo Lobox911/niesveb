@@ -2,12 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
-import { db, events, categories, advertRates, programmeItems, heroSlides } from "@/db";
+import { db, events, categories, advertRates, programmeItems } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import SectionNav from "../../SectionNav";
 import EventForm from "./EventForm";
 import { CategoryList, AdvertList, ProgrammeList } from "../../event/Lists";
-import HeroSlides from "../../event/HeroSlides";
 import FlyerUpload from "../../event/FlyerUpload";
 
 export const metadata: Metadata = { title: "Edit event" };
@@ -25,14 +24,12 @@ export default async function EditEventPage({
   const ev = rows[0];
   if (!isNew && !ev) notFound();
 
-  const [cats, adverts, programme, slides, allEvents] = isNew
-    ? [[], [], [], [], []]
+  const [cats, adverts, programme] = isNew
+    ? [[], [], []]
     : await Promise.all([
         db.select().from(categories).where(eq(categories.eventId, id)).orderBy(asc(categories.sortOrder)),
         db.select().from(advertRates).where(eq(advertRates.eventId, id)).orderBy(asc(advertRates.sortOrder)),
         db.select().from(programmeItems).where(eq(programmeItems.eventId, id)).orderBy(asc(programmeItems.sortOrder)),
-        db.select().from(heroSlides).orderBy(asc(heroSlides.sortOrder)),
-        db.select({ id: events.id, title: events.title }).from(events).orderBy(asc(events.startsAt)),
       ]);
 
   return (
@@ -57,7 +54,6 @@ export default async function EditEventPage({
               { id: "categories", label: "Categories" },
               { id: "adverts", label: "Advert rates" },
               { id: "programme", label: "Programme" },
-              { id: "slides", label: "Hero slides" },
               { id: "flyer", label: "Flyer" },
             ]}
           />
@@ -95,10 +91,6 @@ export default async function EditEventPage({
                 speaker: p.speaker ?? "", isBreak: p.isBreak, sortOrder: p.sortOrder,
               }))}
             />
-          </div>
-
-          <div id="slides" className="scroll-mt-24">
-            <HeroSlides rows={slides} events={allEvents} />
           </div>
 
           <div id="flyer" className="scroll-mt-24">
