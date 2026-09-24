@@ -36,10 +36,6 @@ export default function HeroSlides({ rows }: { rows: SlideRow[] }) {
         <ul className="mt-5">
           {rows.map((r) => (
             <li key={r.id} className="card mb-3 flex items-start gap-4 p-4">
-              {r.imageUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={r.imageUrl} alt="" className="h-16 w-24 shrink-0 rounded border border-line object-cover" />
-              )}
               <div className="min-w-0 flex-1">
                 <p className="text-[15px] font-semibold text-ink">{r.title}</p>
                 <p className="mono text-[13px] text-muted">
@@ -115,25 +111,6 @@ export default function HeroSlides({ rows }: { rows: SlideRow[] }) {
                 <input id="ctaHref" name="ctaHref" className="field" placeholder="/register"
                   defaultValue={editing === "new" ? "" : editing.ctaHref ?? ""} />
               </div>
-            </div>
-
-            <div>
-              <label className="label" htmlFor="image">Background image</label>
-              <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" className="field py-2.5" />
-              <p className="help">
-                JPG, PNG or WebP, maximum 5MB. Landscape works best, around 1600 by 900.
-                A dark overlay is applied automatically so the text stays readable.
-              </p>
-              {editing !== "new" && editing.imageUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={editing.imageUrl} alt="" className="mt-3 h-24 w-full rounded border border-line object-cover" />
-              )}
-            </div>
-
-            <div>
-              <label className="label" htmlFor="imageAlt">Image description</label>
-              <input id="imageAlt" name="imageAlt" className="field"
-                defaultValue={editing === "new" ? "" : editing.imageAlt ?? ""} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

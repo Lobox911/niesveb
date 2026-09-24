@@ -30,15 +30,22 @@ export default function SettingsForm({
 
   return (
     <form
-      className="mt-8 max-w-[640px]"
+      className="mt-8"
       action={(fd) => start(async () => {
         const res = await updateSettings(fd);
         setMsg(res);
         if (res?.ok) setTimeout(() => setMsg(null), 4000);
       })}
     >
+      {/* Group cards sit side by side on wide screens, but the fields inside
+          each stay in one column — two-column form fields make the eye zigzag
+          and measurably slow completion. */}
+      <div className="grid items-start gap-5 xl:grid-cols-2">
       {groups.map((g) => (
-        <fieldset key={g.legend} className="card mt-5 p-6">
+        <fieldset
+          key={g.legend}
+          className={`card p-6 ${g.fields.some((f) => f.textarea) ? "xl:col-span-2" : ""}`}
+        >
           <legend className="mono px-2 text-[12px] uppercase tracking-wider text-muted">
             {g.legend}
           </legend>
@@ -64,6 +71,7 @@ export default function SettingsForm({
           </div>
         </fieldset>
       ))}
+      </div>
 
       <div className="sticky bottom-0 mt-6 border-t border-line bg-paper py-4">
         {msg?.error && <p role="alert" className="mb-3 text-[14px] text-danger">{msg.error}</p>}

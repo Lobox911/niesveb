@@ -6,6 +6,7 @@ import {
 } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import SettingsForm from "../SettingsForm";
+import SectionNav from "../SectionNav";
 import FlyerUpload from "./FlyerUpload";
 import HeroSlides from "./HeroSlides";
 import { CategoryList, AdvertList, ProgrammeList } from "./Lists";
@@ -40,6 +41,18 @@ export default async function EventPage() {
         and takes effect immediately.
       </p>
 
+      <SectionNav
+        items={[
+          { id: "details", label: "Seminar details" },
+          { id: "categories", label: "Categories" },
+          { id: "adverts", label: "Advert rates" },
+          { id: "programme", label: "Programme" },
+          { id: "slides", label: "Upcoming events" },
+          { id: "flyer", label: "Flyer" },
+        ]}
+      />
+
+      <div id="details" className="scroll-mt-24">
       <SettingsForm
         submitLabel="Save event settings"
         initial={{
@@ -90,7 +103,9 @@ export default async function EventPage() {
           },
         ]}
       />
+      </div>
 
+      <div id="categories" className="scroll-mt-24">
       <CategoryList
         rows={cats.map((c) => ({
           id: c.id, name: c.name, eligibility: c.eligibility,
@@ -98,24 +113,33 @@ export default async function EventPage() {
           requiresMembershipNo: c.requiresMembershipNo, sortOrder: c.sortOrder,
         }))}
       />
+      </div>
 
+      <div id="adverts" className="scroll-mt-24">
       <AdvertList
         rows={adverts.map((a) => ({
           id: a.id, placement: a.placement, spec: a.spec,
           rate: a.rateKobo / 100, sortOrder: a.sortOrder,
         }))}
       />
+      </div>
 
+      <div id="programme" className="scroll-mt-24">
       <ProgrammeList
         rows={programme.map((p) => ({
           id: p.id, timeLabel: p.timeLabel, title: p.title,
           speaker: p.speaker ?? "", isBreak: p.isBreak, sortOrder: p.sortOrder,
         }))}
       />
+      </div>
 
-      <HeroSlides rows={slides} />
+      <div id="slides" className="scroll-mt-24">
+        <HeroSlides rows={slides} />
+      </div>
 
-      <FlyerUpload current={s?.flyerUrl ?? null} alt={s?.flyerAlt ?? null} />
+      <div id="flyer" className="scroll-mt-24">
+        <FlyerUpload current={s?.flyerUrl ?? null} alt={s?.flyerAlt ?? null} />
+      </div>
     </div>
   );
 }
