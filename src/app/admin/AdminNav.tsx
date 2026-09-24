@@ -6,7 +6,7 @@ const NAV: [string, string, boolean][] = [
   // [href, label, adminOnly]
   ["/admin", "Dashboard", false],
   ["/admin/attendance", "Attendance desk", false],
-  ["/admin/event", "Event settings", true],
+  ["/admin/events", "Events", true],
   ["/admin/site", "Site settings", true],
   ["/admin/audit", "Activity log", true],
 ];

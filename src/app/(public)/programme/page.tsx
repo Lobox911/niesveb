@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
-import { getSiteData } from "@/lib/site";
+import { getFeaturedEvent, getEventView } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Programme" };
 
 export default async function ProgrammePage() {
-  const event = await getSiteData();
+  const featured = await getFeaturedEvent();
+  const event = featured ? await getEventView(featured) : null;
   return (
     <>
       <PageBanner title="Programme" crumb="Programme" />
       <div className="container-content py-14">
-        {event.programme.length === 0 ? (
+        {!event || event.programme.length === 0 ? (
           <p className="text-[17px] text-muted">
             The programme is being finalised and will be published here shortly.
           </p>

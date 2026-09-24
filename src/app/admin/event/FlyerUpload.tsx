@@ -3,8 +3,8 @@ import { useState, useTransition } from "react";
 import { uploadFlyer, removeFlyer } from "../actions";
 
 export default function FlyerUpload({
-  current, alt,
-}: { current: string | null; alt: string | null }) {
+  eventId, current, alt,
+}: { eventId: string; current: string | null; alt: string | null }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function FlyerUpload({
             type="button" disabled={pending}
             className="btn-secondary mt-4 border-danger text-danger disabled:opacity-40"
             onClick={() => start(async () => {
-              const res = await removeFlyer();
+              const res = await removeFlyer(eventId);
               setMsg(res);
             })}
           >
@@ -48,6 +48,7 @@ export default function FlyerUpload({
       <form
         className="card mt-5 p-5"
         action={(fd) => start(async () => {
+          fd.set("eventId", eventId);
           const res = await uploadFlyer(fd);
           setMsg(res);
           if (res?.ok) { setFileName(null); setTimeout(() => setMsg(null), 4000); }

@@ -7,16 +7,19 @@ export type SlideRow = {
   eyebrow: string | null;
   title: string;
   dateLine: string | null;
-  venueLine: string | null;
+  eventId: string | null;
   ctaLabel: string | null;
   ctaHref: string | null;
-  imageUrl: string | null;
-  imageAlt: string | null;
   sortOrder: number;
   published: boolean;
 };
 
-export default function HeroSlides({ rows }: { rows: SlideRow[] }) {
+export default function HeroSlides({
+  rows, events,
+}: {
+  rows: SlideRow[];
+  events: { id: string; title: string }[];
+}) {
   const [editing, setEditing] = useState<SlideRow | "new" | null>(null);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
@@ -89,17 +92,24 @@ export default function HeroSlides({ rows }: { rows: SlideRow[] }) {
                 defaultValue={editing === "new" ? "" : editing.eyebrow ?? ""} />
             </div>
             <div>
+              <label className="label" htmlFor="eventId">Event this slide promotes</label>
+              <select id="eventId" name="eventId" className="field"
+                defaultValue={editing === "new" ? "" : editing.eventId ?? ""}>
+                <option value="">None — link goes wherever the button points</option>
+                {events.map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}
+              </select>
+              <p className="help">
+                With several events open at once, this is how a participant reaches
+                the one the home page is not featuring.
+              </p>
+            </div>
+
+            <div>
               <label className="label" htmlFor="dateLine">Date</label>
               <input id="dateLine" name="dateLine" className="field"
                 placeholder="25-26 March 2026"
                 defaultValue={editing === "new" ? "" : editing.dateLine ?? ""} />
             </div>
-            <div>
-              <label className="label" htmlFor="venueLine">Venue</label>
-              <input id="venueLine" name="venueLine" className="field"
-                defaultValue={editing === "new" ? "" : editing.venueLine ?? ""} />
-            </div>
-
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="ctaLabel">Button text</label>

@@ -92,10 +92,7 @@ export default function EditableList({
             if (res?.ok) setEditing(null);
           })}
         >
-          {editing !== "new" && <input type="hidden" name="__rowid" value={editing.id} />}
-          {editing !== "new" && !fields.some((f) => f.name === "id") && (
-            <input type="hidden" name="id" value={editing.id} />
-          )}
+          {editing !== "new" && <input type="hidden" name="id" value={editing.id} />}
 
           <div className="grid gap-4 sm:grid-cols-2">
             {fields.map((f) => (

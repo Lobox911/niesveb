@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { updateSettings } from "./actions";
+import { updateBranchSettings } from "./actions";
 
 export type Field = {
   name: string;
@@ -32,7 +32,7 @@ export default function SettingsForm({
     <form
       className="mt-8"
       action={(fd) => start(async () => {
-        const res = await updateSettings(fd);
+        const res = await updateBranchSettings(fd);
         setMsg(res);
         if (res?.ok) setTimeout(() => setMsg(null), 4000);
       })}

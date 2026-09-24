@@ -3,8 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
 import {
-  db, registrations, attendance, auditLog, eventSettings, categories, heroSlides,
-  advertRates, programmeItems,
+  db, registrations, attendance, auditLog, branchSettings, events, categories,
+  heroSlides, advertRates, programmeItems,
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
@@ -132,68 +132,119 @@ export async function markAttendance(rawPasscode: string, method: "desk" | "qr" 
  * subset. Writing every column unconditionally would let the site form null
  * out the event form's values and vice versa.
  */
-export async function updateSettings(formData: FormData) {
+/** Branch-level settings. Writes only the fields present in the form. */
+export async function updateBranchSettings(formData: FormData) {
   const officer = await requireOfficer();
   if (officer.role !== "admin") return { error: "Only a branch administrator can change settings." };
 
-  const TEXT_FIELDS = [
-    "branchName", "registeredAddress", "eventTitle", "theme", "eventType",
-    "timeLine", "venue", "venueAddress", "bankName", "accountName",
-    "accountNumber", "meetingUrl", "meetingId", "supportWhatsapp",
-    "contactEmail", "contactPhones", "aboutBody",
+  const FIELDS = [
+    "branchName", "registeredAddress", "aboutBody", "contactPhones",
+    "contactEmail", "supportWhatsapp", "bankName", "accountName", "accountNumber",
   ] as const;
 
-  const DATE_FIELDS = ["startsAt", "endsAt", "registrationDeadline"] as const;
-
   const patch: Record<string, unknown> = { updatedAt: new Date() };
-
-  for (const key of TEXT_FIELDS) {
+  for (const key of FIELDS) {
     if (!formData.has(key)) continue;
-    const v = String(formData.get(key) ?? "").trim();
-    patch[key] = v || null;
+    patch[key] = String(formData.get(key) ?? "").trim() || null;
   }
 
-  for (const key of DATE_FIELDS) {
-    if (!formData.has(key)) continue;
-    const raw = String(formData.get(key) ?? "").trim();
-    if (!raw) { patch[key] = null; continue; }
-    const d = new Date(raw);
-    if (Number.isNaN(d.getTime())) return { error: `Enter a valid date for ${key}.` };
-    patch[key] = d;
-  }
+  await db.insert(branchSettings).values({ id: 1, ...patch })
+    .onConflictDoUpdate({ target: branchSettings.id, set: patch });
 
-  // The row always exists after seeding, but an insert keeps a fresh database
-  // from failing silently on the first save.
-  await db
-    .insert(eventSettings)
-    .values({
-      id: 1,
-      eventTitle: String(patch.eventTitle ?? "MCPD Seminar"),
-      theme: String(patch.theme ?? ""),
-      startsAt: (patch.startsAt as Date) ?? new Date(),
-      venue: String(patch.venue ?? ""),
-      bankName: String(patch.bankName ?? ""),
-      accountName: String(patch.accountName ?? ""),
-      accountNumber: String(patch.accountNumber ?? ""),
-      ...patch,
-    })
-    .onConflictDoUpdate({ target: eventSettings.id, set: patch });
-
-  await audit(officer.id, "update_settings", "event_settings", "1", { fields: Object.keys(patch) });
+  await audit(officer.id, "update_branch_settings", "branch_settings", "1", { fields: Object.keys(patch) });
   revalidatePath("/", "layout");
   return { ok: true };
 }
 
-export async function updateCategoryFee(id: string, feeNaira: number, units: number) {
+/** Create or update one event. */
+export async function saveEvent(formData: FormData) {
   const officer = await requireOfficer();
-  if (officer.role !== "admin") return { error: "Only a branch administrator can change fees." };
-  if (!Number.isFinite(feeNaira) || feeNaira < 0) return { error: "Enter a fee of zero or more." };
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change events." };
 
-  await db.update(categories).set({ feeKobo: Math.round(feeNaira * 100), units }).where(eq(categories.id, id));
-  await audit(officer.id, "update_category_fee", "categories", id, { feeNaira, units });
+  const id = String(formData.get("id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const slug = String(formData.get("slug") ?? "").trim().toLowerCase();
+  if (!title) return { error: "An event needs a title." };
+  if (!/^[a-z0-9-]+$/.test(slug)) return { error: "The slug may use lowercase letters, numbers and hyphens only." };
 
+  const startsRaw = String(formData.get("startsAt") ?? "").trim();
+  const startsAt = new Date(startsRaw);
+  if (Number.isNaN(startsAt.getTime())) return { error: "Enter a valid start date and time." };
+
+  const optionalDate = (k: string) => {
+    const raw = String(formData.get(k) ?? "").trim();
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const values = {
+    slug,
+    title,
+    theme: String(formData.get("theme") ?? "").trim(),
+    eventType: String(formData.get("eventType") ?? "").trim() || null,
+    startsAt,
+    endsAt: optionalDate("endsAt"),
+    registrationDeadline: optionalDate("registrationDeadline"),
+    timeLine: String(formData.get("timeLine") ?? "").trim() || null,
+    venue: String(formData.get("venue") ?? "").trim(),
+    venueAddress: String(formData.get("venueAddress") ?? "").trim(),
+    meetingUrl: String(formData.get("meetingUrl") ?? "").trim() || null,
+    meetingId: String(formData.get("meetingId") ?? "").trim() || null,
+    status: (["draft", "open", "closed", "archived"] as const).includes(
+      String(formData.get("status")) as never,
+    )
+      ? (String(formData.get("status")) as "draft" | "open" | "closed" | "archived")
+      : "draft",
+    updatedAt: new Date(),
+  };
+
+  let eventId = id;
+  if (id) {
+    await db.update(events).set(values).where(eq(events.id, id));
+  } else {
+    const [row] = await db.insert(events).values(values).returning({ id: events.id });
+    eventId = row?.id ?? "";
+  }
+
+  await audit(officer.id, id ? "update_event" : "create_event", "events", eventId, { slug });
   revalidatePath("/", "layout");
-  revalidatePath("/admin/event");
+  revalidatePath("/admin/events");
+  return { ok: true, id: eventId };
+}
+
+/** Exactly one event leads the home page. */
+export async function featureEvent(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can change events." };
+
+  await db.update(events).set({ isFeatured: false }).where(eq(events.isFeatured, true));
+  await db.update(events).set({ isFeatured: true }).where(eq(events.id, id));
+
+  await audit(officer.id, "feature_event", "events", id);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/events");
+  return { ok: true };
+}
+
+export async function deleteEvent(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can delete events." };
+
+  // Registrations are payment records. An event that has any must be archived,
+  // never removed — the rows reference it and the history matters.
+  const used = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(registrations)
+    .where(eq(registrations.eventId, id));
+  if ((used[0]?.n ?? 0) > 0) {
+    return { error: `That event has ${used[0].n} registration(s). Set its status to archived instead of deleting it.` };
+  }
+
+  await db.delete(events).where(eq(events.id, id));
+  await audit(officer.id, "delete_event", "events", id);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/events");
   return { ok: true };
 }
 
@@ -218,6 +269,9 @@ export async function uploadFlyer(formData: FormData) {
   const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
 
   // addRandomSuffix keeps old uploads reachable; the row points at the newest.
+  const eventId = String(formData.get("eventId") ?? "");
+  if (!eventId) return { error: "No event selected." };
+
   const blob = await put(`flyers/${stamp}-${safe}`, file, {
     access: "public",
     addRandomSuffix: false,
@@ -226,21 +280,21 @@ export async function uploadFlyer(formData: FormData) {
   const alt = String(formData.get("flyerAlt") ?? "").trim() || "Seminar flyer";
 
   await db
-    .update(eventSettings)
+    .update(events)
     .set({ flyerUrl: blob.url, flyerPath: blob.pathname, flyerAlt: alt, updatedAt: new Date() })
-    .where(eq(eventSettings.id, 1));
+    .where(eq(events.id, eventId));
 
-  await audit(officer.id, "upload_flyer", "event_settings", "1", { pathname: blob.pathname });
+  await audit(officer.id, "upload_flyer", "events", eventId, { pathname: blob.pathname });
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true, url: blob.url };
 }
 
-export async function removeFlyer() {
+export async function removeFlyer(eventId: string) {
   const officer = await requireOfficer();
   if (officer.role !== "admin") return { error: "Only a branch administrator can change the flyer." };
 
-  const rows = await db.select().from(eventSettings).where(eq(eventSettings.id, 1)).limit(1);
+  const rows = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
   const current = rows[0]?.flyerUrl;
 
   if (current) {
@@ -249,11 +303,11 @@ export async function removeFlyer() {
   }
 
   await db
-    .update(eventSettings)
+    .update(events)
     .set({ flyerUrl: null, flyerPath: null, flyerAlt: null, updatedAt: new Date() })
-    .where(eq(eventSettings.id, 1));
+    .where(eq(events.id, eventId));
 
-  await audit(officer.id, "remove_flyer", "event_settings", "1");
+  await audit(officer.id, "remove_flyer", "events", eventId);
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true };
@@ -280,20 +334,8 @@ export async function saveHeroSlide(formData: FormData) {
     published: formData.get("published") === "on",
   };
 
-  const image = formData.get("image");
-  if (image instanceof File && image.size > 0) {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(image.type)) {
-      return { error: "The background must be a JPG, PNG or WebP." };
-    }
-    if (image.size > 5 * 1024 * 1024) {
-      return { error: "That image is larger than 5MB. Export it smaller and try again." };
-    }
-    const safe = image.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
-    const blob = await put(`hero/${Date.now()}-${safe}`, image, { access: "public", addRandomSuffix: false });
-    values.imageUrl = blob.url;
-    values.imagePath = blob.pathname;
-    values.imageAlt = String(formData.get("imageAlt") ?? "").trim() || title;
-  }
+  const eventId = String(formData.get("eventId") ?? "").trim();
+  values.eventId = eventId || null;
 
   if (id) {
     await db.update(heroSlides).set(values).where(eq(heroSlides.id, id));
@@ -314,10 +356,6 @@ export async function saveHeroSlide(formData: FormData) {
 export async function deleteHeroSlide(id: string) {
   const officer = await requireOfficer();
   if (officer.role !== "admin") return { error: "Only a branch administrator can change the hero." };
-
-  const rows = await db.select().from(heroSlides).where(eq(heroSlides.id, id)).limit(1);
-  const url = rows[0]?.imageUrl;
-  if (url) { try { await del(url); } catch { /* row should clear regardless */ } }
 
   await db.delete(heroSlides).where(eq(heroSlides.id, id));
   await audit(officer.id, "delete_hero_slide", "hero_slides", id);
@@ -342,11 +380,11 @@ export async function uploadLogo(formData: FormData) {
   const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
   const blob = await put(`brand/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
 
-  await db.update(eventSettings)
+  await db.update(branchSettings)
     .set({ logoUrl: blob.url, logoPath: blob.pathname, updatedAt: new Date() })
-    .where(eq(eventSettings.id, 1));
+    .where(eq(branchSettings.id, 1));
 
-  await audit(officer.id, "upload_logo", "event_settings", "1", { pathname: blob.pathname });
+  await audit(officer.id, "upload_logo", "branch_settings", "1", { pathname: blob.pathname });
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -358,11 +396,16 @@ export async function saveCategory(formData: FormData) {
   if (officer.role !== "admin") return { error: "Only a branch administrator can change categories." };
 
   const id = String(formData.get("id") ?? "").trim();
+  const eventId = String(formData.get("eventId") ?? "").trim();
+  const key = String(formData.get("key") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
-  if (!id || !name) return { error: "A category needs an id and a name." };
-  if (!/^[a-z0-9-]+$/.test(id)) return { error: "The id may use lowercase letters, numbers and hyphens only." };
+  if (!eventId) return { error: "No event selected." };
+  if (!key || !name) return { error: "A category needs a key and a name." };
+  if (!/^[a-z0-9-]+$/.test(key)) return { error: "The key may use lowercase letters, numbers and hyphens only." };
 
   const values = {
+    eventId,
+    key,
     name,
     eligibility: String(formData.get("eligibility") ?? "").trim(),
     feeKobo: Math.round(Number(formData.get("fee") ?? 0) * 100),
@@ -371,10 +414,13 @@ export async function saveCategory(formData: FormData) {
     sortOrder: Number(formData.get("sortOrder") ?? 0) || 0,
   };
 
-  await db.insert(categories).values({ id, ...values })
-    .onConflictDoUpdate({ target: categories.id, set: values });
+  if (id) {
+    await db.update(categories).set(values).where(eq(categories.id, id));
+  } else {
+    await db.insert(categories).values(values);
+  }
 
-  await audit(officer.id, "save_category", "categories", id, values);
+  await audit(officer.id, "save_category", "categories", id || key, values);
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true };
@@ -411,7 +457,11 @@ export async function saveAdvertRate(formData: FormData) {
   const placement = String(formData.get("placement") ?? "").trim();
   if (!placement) return { error: "A placement needs a name." };
 
+  const eventId = String(formData.get("eventId") ?? "").trim();
+  if (!eventId) return { error: "No event selected." };
+
   const values = {
+    eventId,
     placement,
     spec: String(formData.get("spec") ?? "").trim(),
     rateKobo: Math.round(Number(formData.get("rate") ?? 0) * 100),
@@ -450,7 +500,11 @@ export async function saveProgrammeItem(formData: FormData) {
   const timeLabel = String(formData.get("timeLabel") ?? "").trim();
   if (!title || !timeLabel) return { error: "A session needs a time and a title." };
 
+  const eventId = String(formData.get("eventId") ?? "").trim();
+  if (!eventId) return { error: "No event selected." };
+
   const values = {
+    eventId,
     timeLabel,
     title,
     speaker: String(formData.get("speaker") ?? "").trim() || null,
@@ -504,8 +558,8 @@ export async function uploadHeroBackground(formData: FormData) {
     patch.heroImagePath = blob.pathname;
   }
 
-  await db.update(eventSettings).set(patch).where(eq(eventSettings.id, 1));
-  await audit(officer.id, "update_hero_background", "event_settings", "1", { tone });
+  await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
+  await audit(officer.id, "update_hero_background", "branch_settings", "1", { tone });
   revalidatePath("/", "layout");
   revalidatePath("/admin/event");
   return { ok: true };

@@ -4,27 +4,32 @@ import { db, heroSlides } from "@/db";
 import HeroSlider from "@/components/HeroSlider";
 import BackToTop from "@/components/BackToTop";
 import CopyButton from "@/components/CopyButton";
-import { getSiteData } from "@/lib/site";
+import { getBranch, getFeaturedEvent, getEventView } from "@/lib/site";
 
 export default async function Home() {
-  const [event, slides] = await Promise.all([
-    getSiteData(),
+  const featured = await getFeaturedEvent();
+  const [branch, slides] = await Promise.all([
+    getBranch(),
     db.select().from(heroSlides).where(eq(heroSlides.published, true)).orderBy(asc(heroSlides.sortOrder)),
   ]);
+
+  // No open event: the page still renders the branch, so the site is never
+  // blank between seminars.
+  const event = featured ? await getEventView(featured) : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
-    name: `${event.eventTitle} — ${event.branch}`,
-    description: event.theme,
-    startDate: event.date,
+    name: `${event?.title} — ${branch.branchName}`,
+    description: event?.theme ?? "",
+    startDate: event?.date ?? "",
     eventAttendanceMode: "https://schema.org/MixedEventAttendanceMode",
     location: {
       "@type": "Place",
-      name: event.venue,
-      address: event.venueAddress || event.venue,
+      name: event?.venue ?? "",
+      address: event?.venueAddress || event?.venue || "",
     },
-    organizer: { "@type": "Organization", name: event.branch },
+    organizer: { "@type": "Organization", name: branch.branchName },
   };
 
   return (
@@ -40,27 +45,27 @@ export default async function Home() {
       {slides.length > 0 ? (
         <HeroSlider
           slides={slides}
-          backgroundUrl={event.heroImageUrl}
-          backgroundAlt={event.heroImageAlt}
-          tone={event.heroTextTone}
-          fallbackDate={event.date}
-          fallbackEyebrow={event.eventType}
+          backgroundUrl={branch.heroImageUrl}
+          backgroundAlt={branch.heroImageAlt}
+          tone={branch.heroTextTone}
+          fallbackDate={event?.date ?? ""}
+          fallbackEyebrow={event?.eventType}
         />
       ) : (
         <section className="relative overflow-hidden bg-ink">
           <div className="container-content relative z-10 py-16 md:py-24">
             <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">
-              {event.eventTitle} / Hybrid
+              {event?.title} / Hybrid
             </p>
             <h1 className="mt-5 max-w-[18ch] text-[30px] leading-[1.15] text-white md:text-[46px]">
-              {event.theme}
+              {event?.theme ?? ""}
             </h1>
 
             <dl className="mt-9 max-w-[420px]">
               {[
-                ["Date", event.date],
-                ["Time", event.time],
-                ["Venue", event.venue],
+                ["Date", event?.date ?? ""],
+                ["Time", event?.time ?? ""],
+                ["Venue", event?.venue ?? ""],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-6 border-b border-gold/30 py-3">
                   <dt className="mono text-[13px] uppercase tracking-wider text-white/60">{k}</dt>
@@ -109,10 +114,10 @@ export default async function Home() {
       <section className="container-content relative z-20 -mt-10 md:-mt-12">
         <dl className="card grid grid-cols-2 divide-line md:grid-cols-4 md:divide-x">
           {[
-            ["Date", event.date],
-            ["Venue", event.venue],
+            ["Date", event?.date ?? ""],
+            ["Venue", event?.venue ?? ""],
             ["Format", "Hybrid"],
-            ["Deadline", event.registrationDeadline],
+            ["Deadline", event?.registrationDeadline ?? ""],
           ].map(([k, v], i) => (
             <div key={k} className={`p-5 ${i < 2 ? "border-b border-line md:border-b-0" : ""} ${i % 2 ? "border-l border-line md:border-l-0" : ""}`}>
               <dt className="mono text-[12px] uppercase tracking-wider text-muted">{k}</dt>
@@ -131,13 +136,13 @@ export default async function Home() {
         <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
           <div className="max-w-prose">
             <h2 className="text-[26px]">About the seminar</h2>
-            {(event.aboutBody.length > 0
-              ? event.aboutBody
+            {(branch.aboutBody.length > 0
+              ? branch.aboutBody
               : [
-                  `The ${event.eventTitle} brings practitioners in Ebonyi State together around current standards in estate surveying and valuation practice. Sessions address regulatory developments, valuation methodology and the tools shaping professional work.`,
+                  `The ${event?.title} brings practitioners in Ebonyi State together around current standards in estate surveying and valuation practice. Sessions address regulatory developments, valuation methodology and the tools shaping professional work.`,
                   "Attendance is open to Fellows, Members, probationers and students of the Institution, as well as allied professionals and the general public.",
                 ]
-            ).map((para, n) => (
+            ).map((para: string, n: number) => (
               <p key={n} className="mt-4 text-[17px] leading-relaxed text-muted">
                 {para}
               </p>
@@ -156,24 +161,24 @@ export default async function Home() {
             </ul>
           </div>
 
-          {event.flyerUrl && (
+          {event?.flyerUrl && (
             <aside>
               <h3 className="mono text-[12px] uppercase tracking-wider text-muted">
                 Seminar flyer
               </h3>
-              {event.flyerUrl.toLowerCase().endsWith(".pdf") ? (
-                <a href={event.flyerUrl} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
+              {event?.flyerUrl.toLowerCase().endsWith(".pdf") ? (
+                <a href={event?.flyerUrl} target="_blank" rel="noreferrer" className="btn-secondary mt-4">
                   Open the flyer (PDF)
                 </a>
               ) : (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={event.flyerUrl}
-                    alt={event.flyerAlt ?? "Seminar flyer"}
+                    src={event?.flyerUrl}
+                    alt={event?.flyerAlt ?? "Seminar flyer"}
                     className="mt-4 w-full rounded border border-line"
                   />
-                  <a href={event.flyerUrl} download className="btn-secondary mt-4 w-full">
+                  <a href={event?.flyerUrl} download className="btn-secondary mt-4 w-full">
                     Download the flyer
                   </a>
                   <p className="help">Share this with colleagues who have not registered yet.</p>
@@ -216,15 +221,15 @@ export default async function Home() {
           <dl>
             <dt className="mono text-[12px] uppercase tracking-wider text-muted">Account number</dt>
             <dd className="mono mt-2 select-all text-[26px] tracking-[0.12em] text-ink">
-              {event.accountNumber}
+              {branch.accountNumber}
             </dd>
             <dt className="sr-only">Bank</dt>
-            <dd className="mt-4 text-[15px] text-muted">{event.bankName}</dd>
+            <dd className="mt-4 text-[15px] text-muted">{branch.bankName}</dd>
             <dt className="sr-only">Account name</dt>
-            <dd className="text-[15px] text-muted">{event.accountName}</dd>
+            <dd className="text-[15px] text-muted">{branch.accountName}</dd>
           </dl>
           <CopyButton
-            value={event.accountNumber}
+            value={branch.accountNumber}
             label="Copy account number"
             className="btn-primary mt-5"
           />
@@ -249,7 +254,7 @@ export default async function Home() {
                 </tr>
               </thead>
               <tbody>
-                {event.categories.map((c) => (
+                {(event?.categories ?? []).map((c) => (
                   <tr key={c.id} className="border-b border-line last:border-b-0">
                     <th scope="row" className="py-4 pr-4 text-[15px] font-medium text-ink" style={{ fontFamily: "var(--font-body)" }}>
                       {c.name}
@@ -258,7 +263,7 @@ export default async function Home() {
                     <td className="mono px-4 py-4 text-right text-[15px] text-ink whitespace-nowrap">{c.feeLabel}</td>
                     <td className="mono px-4 py-4 text-right text-[14px] text-muted">{c.units}</td>
                     <td className="py-4 pl-4 text-right">
-                      <Link href={`/register?category=${c.id}`} className="text-[14px] text-green underline underline-offset-4">
+                      <Link href={`/register?category=${c.key}`} className="text-[14px] text-green underline underline-offset-4">
                         Register
                       </Link>
                     </td>
@@ -283,7 +288,7 @@ export default async function Home() {
               </tr>
             </thead>
             <tbody>
-              {event.advertRates.map((a) => (
+              {(event?.advertRates ?? []).map((a) => (
                 <tr key={a.placement} className="border-b border-line last:border-b-0">
                   <th scope="row" className="py-4 pr-4 text-[15px] font-medium text-ink" style={{ fontFamily: "var(--font-body)" }}>
                     {a.placement}
@@ -297,12 +302,12 @@ export default async function Home() {
       </section>
 
       {/* 8. PROGRAMME PREVIEW */}
-      {event.programme.length > 0 && (
+      {(event?.programme ?? []).length > 0 && (
         <section className="border-y border-line bg-white py-14 md:py-20">
           <div className="container-content">
             <h2 className="text-[26px]">Programme</h2>
             <ul className="mt-6">
-              {event.programme.slice(0, 5).map((s, i) => (
+              {(event?.programme ?? []).slice(0, 5).map((s, i) => (
                 <li key={i} className="flex gap-6 border-b border-line py-4 last:border-b-0">
                   <span className="mono w-[72px] shrink-0 text-[14px] text-gold">{s.time}</span>
                   <span>
@@ -323,7 +328,7 @@ export default async function Home() {
       <section className="bg-ink py-16">
         <div className="container-content text-center">
           <p className="mono text-[13px] uppercase tracking-[0.2em] text-gold">
-            Registration closes {event.registrationDeadline}
+            Registration closes {event?.registrationDeadline ?? ""}
           </p>
           <h2 className="mt-4 text-[26px] text-white md:text-[34px]">Secure your place</h2>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
