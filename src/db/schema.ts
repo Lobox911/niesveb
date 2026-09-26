@@ -205,7 +205,14 @@ export const registrations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     eventId: uuid("event_id").notNull().references(() => events.id),
 
-    passcode: text("passcode").notNull(),
+    /* Null until an officer confirms the payment. The passcode is what opens
+       the join link, the photo card and the attendance gate, so issuing it at
+       registration would hand working credentials to anyone who filled in the
+       form. It is created at the moment of confirmation, not withheld — a
+       withheld code still sits in the row, waiting to leak through the first
+       query that selects it. Postgres treats nulls as distinct, so the unique
+       index below still holds across every issued code. */
+    passcode: text("passcode"),
 
     title: text("title"),
     surname: text("surname").notNull(),

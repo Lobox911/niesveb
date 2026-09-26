@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { confirmPayment, rejectPayment } from "./actions";
 
 type Row = {
-  id: string; passcode: string; title: string | null; surname: string; firstName: string;
+  id: string; passcode: string | null; title: string | null; surname: string; firstName: string;
   membershipNo: string | null; email: string; phone: string; firm: string | null;
   categoryId: string; mode: string; amount: string; txnRef: string | null;
   proofUrl: string | null; status: string; rejectionReason: string | null; createdAt: string;
@@ -105,7 +105,9 @@ export default function RegistrationsTable({
                 onKeyDown={(e) => { if (e.key === "Enter") setOpen(r); }}
                 className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper focus:bg-paper"
               >
-                <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">{r.passcode}</th>
+                <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">
+                  {r.passcode ?? <span className="text-muted">Not issued</span>}
+                </th>
                 <td className="whitespace-nowrap px-4 py-3 text-[15px] font-medium text-ink">
                   {[r.title, r.firstName, r.surname].filter(Boolean).join(" ")}
                 </td>
@@ -149,6 +151,30 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [issued, setIssued] = useState<string | null>(null);
+
+  if (issued) {
+    return (
+      <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="flex-1 bg-ink/40" onClick={onClose} aria-hidden />
+        <div role="dialog" aria-label="Payment confirmed" className="w-full max-w-[560px] border-l border-line bg-white p-6">
+          <p className="mono inline-flex rounded border border-green/40 bg-green/10 px-3 py-1.5 text-[12px] uppercase tracking-wider text-green">
+            Payment confirmed
+          </p>
+          <h2 className="mt-4 text-[20px] text-ink">
+            {[row.title, row.firstName, row.surname].filter(Boolean).join(" ")}
+          </h2>
+          <p className="mt-1 text-[15px] text-muted">Participation code</p>
+          <p className="mono mt-2 select-all text-[34px] tracking-[0.2em] text-ink">{issued}</p>
+          <p className="help mt-4">
+            Emailed to {row.email}. Read it out or write it down if they are
+            waiting at the desk.
+          </p>
+          <button type="button" onClick={onClose} className="btn-primary mt-8">Done</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -157,7 +183,9 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
         <div className="flex items-start justify-between gap-4 border-b border-line p-6">
           <div>
             <h2 className="text-[20px] text-ink">Registration details</h2>
-            <p className="mono mt-1 text-[14px] text-muted">{row.passcode}</p>
+            <p className="mono mt-1 text-[14px] text-muted">
+              {row.passcode ?? "Code issued on confirmation"}
+            </p>
           </div>
           <button type="button" onClick={onClose} className="btn-secondary px-3">Close</button>
         </div>
@@ -245,7 +273,14 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
               <button
                 type="button" disabled={pending || row.status === "confirmed"}
                 className="btn-primary flex-1 disabled:opacity-40"
-                onClick={() => start(async () => { await confirmPayment(row.id); onClose(); })}
+                onClick={() => start(async () => {
+                  const res = await confirmPayment(row.id);
+                  // Shown rather than closing straight away: someone paying at
+                  // the desk is standing there waiting, and will not check an
+                  // inbox before the registrar needs to let them in.
+                  if (res?.passcode) setIssued(res.passcode);
+                  else onClose();
+                })}
               >
                 {row.status === "confirmed" ? "Already confirmed" : "Confirm payment"}
               </button>

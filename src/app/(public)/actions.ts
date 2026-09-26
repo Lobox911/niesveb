@@ -3,9 +3,9 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, or, sql } from "drizzle-orm";
 import { db, registrations, categories, events, attendance, certificates } from "@/db";
-import { generatePasscode, normalisePasscode } from "@/lib/passcode";
-import { naira, dateRange } from "@/lib/site";
-import { sendPasscodeEmail } from "@/lib/email";
+import { normalisePasscode } from "@/lib/passcode";
+import { naira, dateRange, getBranch } from "@/lib/site";
+import { sendRegistrationReceivedEmail } from "@/lib/email";
 
 /**
  * Public registration. No authentication — anyone can register — so every
@@ -104,25 +104,12 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
     }
   }
 
-  // A passcode must be globally unique — the gates are given nothing else to
-  // identify a registration by. Collisions are vanishingly unlikely with this
-  // alphabet, but retrying costs nothing and guessing wrong is unrecoverable.
-  let passcode = generatePasscode();
-  for (let i = 0; i < 5; i++) {
-    const taken = await db
-      .select({ id: registrations.id })
-      .from(registrations)
-      .where(eq(registrations.passcode, passcode))
-      .limit(1);
-    if (!taken[0]) break;
-    passcode = generatePasscode();
-  }
-
+  // No passcode here. It is issued when an officer confirms the payment —
+  // see issuePasscode in the admin actions.
   const [saved] = await db
     .insert(registrations)
     .values({
       eventId: ev.id,
-      passcode,
       title: text("title") || null,
       surname,
       firstName,
@@ -140,8 +127,8 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
     .returning({ id: registrations.id });
 
   // Short-lived cookie rather than a query parameter: the success page needs
-  // the passcode, but a code in the URL ends up in browser history and in any
-  // link the participant pastes to someone else.
+  // to know which registration this was, and an id in the URL ends up in
+  // browser history and in any link the participant pastes to someone else.
   const jar = await cookies();
   jar.set(RECEIPT_COOKIE, saved.id, {
     httpOnly: true,
@@ -152,15 +139,19 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
   });
 
   // Email is best effort. A failure here must not lose the registration —
-  // the passcode is already saved and shown on the next screen.
-  await sendPasscodeEmail({
+  // the row is saved and the same information is on the next screen.
+  const branch = await getBranch();
+  await sendRegistrationReceivedEmail({
     to: email,
     name: `${text("title")} ${firstName} ${surname}`.trim(),
-    passcode,
     eventTitle: ev.title,
     eventDate: dateRange(ev.startsAt, ev.endsAt),
     venue: ev.venue,
     amountLabel: naira(cat.feeKobo),
+    categoryName: cat.name,
+    bankName: branch.bankName,
+    accountName: branch.accountName,
+    accountNumber: branch.accountNumber,
     siteUrl: await siteUrl(),
   }).catch(() => false);
 
@@ -207,6 +198,8 @@ export async function retrievePasscode(_prev: unknown, formData: FormData) {
       firstName: registrations.firstName,
       surname: registrations.surname,
       email: registrations.email,
+      status: registrations.status,
+      rejectionReason: registrations.rejectionReason,
       categoryName: categories.name,
       eventTitle: events.title,
     })
@@ -228,11 +221,37 @@ export async function retrievePasscode(_prev: unknown, formData: FormData) {
   }
 
   const [user, domain] = r.email.split("@");
+  const masked = `${user.slice(0, 1)}***@${domain}`;
+
+  // Telling someone their payment is still being checked is the difference
+  // between waiting and registering a second time. "Not found" produces
+  // duplicates the branch then has to unpick.
+  if (r.status === "rejected") {
+    return {
+      pending: true,
+      status: "rejected" as const,
+      name: `${r.title ?? ""} ${r.firstName} ${r.surname}`.trim(),
+      email: masked,
+      eventTitle: r.eventTitle,
+      reason: r.rejectionReason ?? "",
+    };
+  }
+
+  if (!r.passcode) {
+    return {
+      pending: true,
+      status: "pending" as const,
+      name: `${r.title ?? ""} ${r.firstName} ${r.surname}`.trim(),
+      email: masked,
+      eventTitle: r.eventTitle,
+    };
+  }
+
   return {
     ok: true,
     passcode: r.passcode,
     name: `${r.title ?? ""} ${r.firstName} ${r.surname}`.trim(),
-    email: `${user.slice(0, 1)}***@${domain}`,
+    email: masked,
     category: r.categoryName,
     eventTitle: r.eventTitle,
   };

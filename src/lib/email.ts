@@ -51,42 +51,99 @@ ${body}
 </div>`;
 }
 
-export async function sendPasscodeEmail(opts: {
+/**
+ * Sent the moment a registration is submitted. Carries no passcode: the code
+ * is what opens the join link and the attendance gate, so it is issued only
+ * once an officer has confirmed the payment. This email's job is to say the
+ * form arrived, repeat the bank details for anyone who registered before
+ * paying, and set the expectation that a second email is coming.
+ */
+export async function sendRegistrationReceivedEmail(opts: {
   to: string;
   name: string;
-  passcode: string;
   eventTitle: string;
   eventDate: string;
   venue: string;
   amountLabel: string;
+  categoryName: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
   siteUrl: string;
 }) {
   const branch = await getBranch();
+
+  const bank = opts.accountNumber
+    ? `<p style="background:#F7F8F6;border-left:2px solid #0B6E4F;padding:12px 16px">
+<strong>${opts.bankName}</strong><br>
+${opts.accountName}<br>
+<span style="font-family:ui-monospace,monospace;font-size:18px;letter-spacing:1px">${opts.accountNumber}</span>
+</p>
+<p>If you have not yet paid, transfer the fee to the account above and reply to
+this message with the receipt.</p>`
+    : "";
+
   const body = `
 <p>Dear ${opts.name},</p>
 <p>Your registration for the <strong>${opts.eventTitle}</strong> has been received.</p>
+<p><strong>Category:</strong> ${opts.categoryName}<br>
+<strong>Date:</strong> ${opts.eventDate}<br>
+<strong>Venue:</strong> ${opts.venue}<br>
+<strong>Fee:</strong> ${opts.amountLabel}</p>
+<p>The branch is now checking your payment against the bank record. Once it is
+confirmed you will receive a second email with your participation code.</p>
+<p>That code is what you will use to join the session online, print your photo
+card and download your certificate, so keep the second email.</p>
+${bank}
+<p>Nothing is required from you in the meantime.</p>`;
+
+  return send(
+    opts.to,
+    `Registration received — ${opts.eventTitle}`,
+    wrap(branch.branchName, body),
+  );
+}
+
+/**
+ * The one that matters. This is the first time the participant sees a code,
+ * so it repeats the practical details rather than assuming they still have
+ * the first email.
+ */
+export async function sendConfirmedEmail(opts: {
+  to: string;
+  name: string;
+  passcode: string;
+  eventTitle: string;
+  eventDate?: string;
+  venue?: string;
+  siteUrl?: string;
+}) {
+  const branch = await getBranch();
+
+  const details = opts.eventDate
+    ? `<p><strong>Date:</strong> ${opts.eventDate}${opts.venue ? `<br><strong>Venue:</strong> ${opts.venue}` : ""}</p>`
+    : "";
+
+  const links = opts.siteUrl
+    ? `<p>
+<a href="${opts.siteUrl}/photo-card">Print your photo card</a><br>
+<a href="${opts.siteUrl}/join">Join the session online</a><br>
+<a href="${opts.siteUrl}/retrieve">Retrieve this code if you lose it</a>
+</p>`
+    : "";
+
+  const body = `
+<p>Dear ${opts.name},</p>
+<p>Your payment for the <strong>${opts.eventTitle}</strong> has been confirmed.
+Your participation code is:</p>
 <p style="font-family:ui-monospace,monospace;font-size:26px;letter-spacing:4px;margin:24px 0">${opts.passcode}</p>
 <p>Keep this code. You will need it to join the session online, to print your
 photo card, and to download your certificate of participation.</p>
-<p><strong>Date:</strong> ${opts.eventDate}<br>
-<strong>Venue:</strong> ${opts.venue}<br>
-<strong>Amount declared:</strong> ${opts.amountLabel}</p>
-<p>Your payment is being confirmed by the branch. Until it is confirmed the
-code works for your photo card but not for the certificate.</p>
-<p><a href="${opts.siteUrl}/retrieve">Retrieve this code again</a> at any time.</p>`;
-  return send(opts.to, `Your registration code for ${opts.eventTitle}`, wrap(branch.branchName, body));
-}
+${details}
+${links}
+<p>Your certificate opens after the seminar, once your attendance has been
+recorded.</p>`;
 
-export async function sendConfirmedEmail(opts: {
-  to: string; name: string; passcode: string; eventTitle: string;
-}) {
-  const branch = await getBranch();
-  const body = `
-<p>Dear ${opts.name},</p>
-<p>Your payment for the <strong>${opts.eventTitle}</strong> has been confirmed.</p>
-<p style="font-family:ui-monospace,monospace;font-size:26px;letter-spacing:4px;margin:24px 0">${opts.passcode}</p>
-<p>Your certificate of participation will open after the seminar, once your
-attendance has been recorded.</p>`;
   return send(opts.to, `Payment confirmed — ${opts.eventTitle}`, wrap(branch.branchName, body));
 }
 
@@ -98,6 +155,8 @@ export async function sendRejectedEmail(opts: {
 <p>Dear ${opts.name},</p>
 <p>We could not confirm your payment for the <strong>${opts.eventTitle}</strong>.</p>
 <p style="background:#F7F8F6;border-left:2px solid #B08A2E;padding:12px 16px">${opts.reason}</p>
-<p>Please contact the branch to resolve this.</p>`;
+<p>Your registration is held, not cancelled. Contact the branch to resolve
+this and your code will be issued once the payment is confirmed.</p>
+${branch.contactPhones.length ? `<p><strong>${branch.contactPhones.join(" · ")}</strong>${branch.contactEmail ? `<br>${branch.contactEmail}` : ""}</p>` : ""}`;
   return send(opts.to, `Payment could not be confirmed — ${opts.eventTitle}`, wrap(branch.branchName, body));
 }

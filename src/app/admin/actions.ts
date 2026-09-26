@@ -7,9 +7,21 @@ import {
   heroSlides, advertRates, programmeItems,
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer, hashPassword } from "@/lib/auth";
-import { normalisePasscode } from "@/lib/passcode";
+import { normalisePasscode, generatePasscode } from "@/lib/passcode";
+import { dateRange, getBranch } from "@/lib/site";
+import { headers } from "next/headers";
 import { sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
 import { del } from "@vercel/blob";
+
+/** The address to put in emails. Prefers the branch's canonical setting and
+ *  falls back to the request host, so links work before it is filled in. */
+async function publicUrl(): Promise<string> {
+  const branch = await getBranch();
+  if (branch.canonicalUrl) return branch.canonicalUrl;
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  return `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+}
 
 /* ---------- auth ---------- */
 
@@ -42,42 +54,94 @@ async function audit(officerId: string, action: string, table: string, targetId:
 
 /* ---------- payment verification ---------- */
 
+/**
+ * A passcode must be globally unique — the gates are given nothing else to
+ * identify a registration by. Collisions are vanishingly unlikely with this
+ * alphabet, but retrying costs nothing and guessing wrong is unrecoverable.
+ */
+async function freshPasscode(): Promise<string> {
+  let code = generatePasscode();
+  for (let i = 0; i < 5; i++) {
+    const taken = await db
+      .select({ id: registrations.id })
+      .from(registrations)
+      .where(eq(registrations.passcode, code))
+      .limit(1);
+    if (!taken[0]) return code;
+    code = generatePasscode();
+  }
+  return code;
+}
+
+/**
+ * Confirming a payment is what issues the participation code. Before this
+ * moment the registration has none, so nobody can join the session, print a
+ * photo card or be marked present on the strength of a form submission alone.
+ *
+ * Re-confirming a registration that already has a code keeps it: the code may
+ * already be in the participant's hands, and rotating it silently would lock
+ * them out.
+ */
 export async function confirmPayment(id: string) {
   const officer = await requireOfficer();
+
+  const existing = await db
+    .select({ passcode: registrations.passcode })
+    .from(registrations)
+    .where(eq(registrations.id, id))
+    .limit(1);
+  if (!existing[0]) return { error: "That registration no longer exists." };
+
+  const passcode = existing[0].passcode ?? (await freshPasscode());
+
   const [reg] = await db
     .update(registrations)
-    .set({ status: "confirmed", confirmedBy: officer.id, confirmedAt: new Date(), rejectionReason: null })
+    .set({
+      status: "confirmed",
+      passcode,
+      confirmedBy: officer.id,
+      confirmedAt: new Date(),
+      rejectionReason: null,
+    })
     .where(eq(registrations.id, id))
     .returning({
       email: registrations.email, title: registrations.title,
       firstName: registrations.firstName, surname: registrations.surname,
-      passcode: registrations.passcode, eventId: registrations.eventId,
+      eventId: registrations.eventId,
     });
 
-  // Best effort: a mail failure must not undo a confirmed payment.
+  // Best effort: a mail failure must not undo a confirmed payment. The code is
+  // returned either way so the officer can read it out to someone paying at
+  // the desk, who will not wait for an inbox.
   if (reg) {
-    const ev = await db.select({ title: events.title }).from(events).where(eq(events.id, reg.eventId)).limit(1);
+    const ev = await db
+      .select({ title: events.title, startsAt: events.startsAt, endsAt: events.endsAt, venue: events.venue })
+      .from(events).where(eq(events.id, reg.eventId)).limit(1);
+
     await sendConfirmedEmail({
       to: reg.email,
       name: `${reg.title ?? ""} ${reg.firstName} ${reg.surname}`.trim(),
-      passcode: reg.passcode,
+      passcode,
       eventTitle: ev[0]?.title ?? "the seminar",
+      eventDate: ev[0] ? dateRange(ev[0].startsAt, ev[0].endsAt) : undefined,
+      venue: ev[0]?.venue,
+      siteUrl: await publicUrl(),
     }).catch(() => false);
   }
 
   await audit(officer.id, "confirm_payment", "registrations", id);
   revalidatePath("/admin");
+  return { ok: true, passcode };
 }
 
 export async function confirmManyPayments(ids: string[]) {
   const officer = await requireOfficer();
   if (ids.length === 0) return { error: "Select at least one registration." };
 
+  // Sequential rather than parallel: each one may need a passcode, and two
+  // concurrent draws could collide on the uniqueness check.
   for (const id of ids) {
-    await db
-      .update(registrations)
-      .set({ status: "confirmed", confirmedBy: officer.id, confirmedAt: new Date(), rejectionReason: null })
-      .where(eq(registrations.id, id));
+    await confirmPayment(id);
   }
   await audit(officer.id, "bulk_confirm_payment", "registrations", ids.join(","), { count: ids.length });
   revalidatePath("/admin");
