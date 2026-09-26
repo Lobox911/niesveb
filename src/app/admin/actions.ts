@@ -8,6 +8,7 @@ import {
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer, hashPassword } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
+import { sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
 import { put, del } from "@vercel/blob";
 
 /* ---------- auth ---------- */
@@ -43,10 +44,27 @@ async function audit(officerId: string, action: string, table: string, targetId:
 
 export async function confirmPayment(id: string) {
   const officer = await requireOfficer();
-  await db
+  const [reg] = await db
     .update(registrations)
     .set({ status: "confirmed", confirmedBy: officer.id, confirmedAt: new Date(), rejectionReason: null })
-    .where(eq(registrations.id, id));
+    .where(eq(registrations.id, id))
+    .returning({
+      email: registrations.email, title: registrations.title,
+      firstName: registrations.firstName, surname: registrations.surname,
+      passcode: registrations.passcode, eventId: registrations.eventId,
+    });
+
+  // Best effort: a mail failure must not undo a confirmed payment.
+  if (reg) {
+    const ev = await db.select({ title: events.title }).from(events).where(eq(events.id, reg.eventId)).limit(1);
+    await sendConfirmedEmail({
+      to: reg.email,
+      name: `${reg.title ?? ""} ${reg.firstName} ${reg.surname}`.trim(),
+      passcode: reg.passcode,
+      eventTitle: ev[0]?.title ?? "the seminar",
+    }).catch(() => false);
+  }
+
   await audit(officer.id, "confirm_payment", "registrations", id);
   revalidatePath("/admin");
 }
@@ -72,10 +90,26 @@ export async function rejectPayment(id: string, reason: string) {
   // Emailed to the participant verbatim, so it cannot be blank.
   if (!clean) return { error: "A rejection reason is required. It is sent to the participant." };
 
-  await db
+  const [reg] = await db
     .update(registrations)
     .set({ status: "rejected", rejectionReason: clean, confirmedBy: officer.id, confirmedAt: new Date() })
-    .where(eq(registrations.id, id));
+    .where(eq(registrations.id, id))
+    .returning({
+      email: registrations.email, title: registrations.title,
+      firstName: registrations.firstName, surname: registrations.surname,
+      eventId: registrations.eventId,
+    });
+
+  if (reg) {
+    const ev = await db.select({ title: events.title }).from(events).where(eq(events.id, reg.eventId)).limit(1);
+    await sendRejectedEmail({
+      to: reg.email,
+      name: `${reg.title ?? ""} ${reg.firstName} ${reg.surname}`.trim(),
+      eventTitle: ev[0]?.title ?? "the seminar",
+      reason: clean,
+    }).catch(() => false);
+  }
+
   await audit(officer.id, "reject_payment", "registrations", id, { reason: clean });
   revalidatePath("/admin");
 }

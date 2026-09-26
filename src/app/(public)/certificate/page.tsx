@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
-import PasscodeGate from "@/components/PasscodeGate";
+import CertificateGate from "./CertificateGate";
 
 export const metadata: Metadata = { title: "Certificate of participation" };
 
@@ -23,7 +23,7 @@ export default function CertificatePage() {
 
         {/* TODO: eligibility states — not yet held / unconfirmed / no attendance */}
         <div className="mt-10">
-          <PasscodeGate cta="Open my certificate" />
+          <CertificateGate />
         </div>
       </div>
     </>

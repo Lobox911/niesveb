@@ -1,59 +1,54 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState } from "react";
 import CredentialStrip from "@/components/CredentialStrip";
+import { retrievePasscode } from "../actions";
+
+type Result = {
+  ok?: boolean; error?: string;
+  passcode?: string; name?: string; email?: string;
+  category?: string; eventTitle?: string;
+};
 
 export default function RetrieveForm() {
-  const [q, setQ] = useState("");
-  const [state, setState] = useState<"idle" | "found" | "none">("idle");
+  const [state, action, pending] = useActionState(retrievePasscode, null as Result | null);
+
+  if (state?.ok && state.passcode) {
+    return (
+      <div className="max-w-[480px]">
+        <CredentialStrip
+          code={state.passcode}
+          rows={[
+            { label: "Participant", value: state.name ?? "" },
+            { label: "Email", value: state.email ?? "" },
+            { label: "Category", value: state.category ?? "" },
+          ]}
+        />
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/photo-card" className="btn-secondary">Photo card</Link>
+          <Link href="/certificate" className="btn-secondary">Certificate</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-[480px]">
-      {state !== "found" && (
-        <div>
-          <label className="label" htmlFor="q">Membership number or email</label>
-          <input
-            id="q" className="field-mono" value={q} placeholder="Example FL01008, G07854, M02598"
-            onChange={(e) => { setQ(e.target.value); setState("idle"); }}
-            aria-describedby="q-help"
-          />
-          <p id="q-help" className="help">Either one works.</p>
-          <button
-            type="button"
-            className="btn-primary mt-5 min-h-[50px] px-8"
-            onClick={() => setState(q.trim() ? "found" : "none")}
-          >
-            Find my registration
-          </button>
+    <form action={action} className="max-w-[480px]">
+      <label className="label" htmlFor="q">Membership number or email</label>
+      <input id="q" name="q" className="field-mono" aria-describedby="q-help"
+        placeholder="Example FL01008, G07854, M02598" />
+      <p id="q-help" className="help">Either one works.</p>
+
+      {state?.error && (
+        <div className="mt-4 rounded border border-line bg-paper p-4">
+          <p role="alert" className="text-[15px] text-ink">{state.error}</p>
+          <Link href="/register" className="btn-primary mt-4">Register now</Link>
         </div>
       )}
 
-      {state === "found" && (
-        <>
-          <CredentialStrip
-            code="EBY4-9K7C"
-            rows={[
-              { label: "Participant", value: "Adenuga Oluwaseun" },
-              { label: "Email", value: "o***@gmail.com" },
-              { label: "Category", value: "Member" },
-            ]}
-          />
-          <button type="button" className="btn-secondary mt-6 w-full" onClick={() => setState("idle")}>
-            Search again
-          </button>
-        </>
-      )}
-
-      {state === "none" && (
-        <div className="mt-6 rounded border border-line bg-paper p-5">
-          <p className="text-[15px] text-ink">
-            No 2026 registration found for that membership number.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/register" className="btn-primary">Register now</Link>
-          </div>
-        </div>
-      )}
-    </div>
+      <button type="submit" disabled={pending} className="btn-primary mt-5 min-h-[50px] px-8 disabled:opacity-60">
+        {pending ? "Searching" : "Find my registration"}
+      </button>
+    </form>
   );
 }

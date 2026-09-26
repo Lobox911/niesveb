@@ -1,29 +1,40 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import CredentialStrip from "@/components/CredentialStrip";
 import CopyButton from "@/components/CopyButton";
+import { getReceipt } from "../../actions";
+import { emailEnabled } from "@/lib/email";
+import { naira } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Registration received" };
+export const metadata: Metadata = { title: "Registration received", robots: { index: false } };
 
-// TODO: read the issued registration from the database by session/token.
-const MOCK = { code: "EBY4-9K7C", name: "Adenuga Oluwaseun", category: "Member", mode: "Virtual" };
+export default async function SuccessPage() {
+  const r = await getReceipt();
+  // Nothing to show without the receipt cookie — usually a refresh long after
+  // registering, or a direct visit.
+  if (!r) redirect("/retrieve");
 
-export default function SuccessPage() {
+  const name = `${r.title ?? ""} ${r.firstName} ${r.surname}`.trim();
+  const mailed = emailEnabled();
+  const [user, domain] = r.email.split("@");
+
   return (
     <div className="container-content py-16">
       <div className="mx-auto max-w-[560px]">
         <h1 className="text-center text-[26px]">Registration received</h1>
         <p className="mt-3 text-center text-[15px] text-muted">
-          Your details have been recorded. Save your passcode.
+          Your details have been recorded. Save your code.
         </p>
 
         <div className="mt-10">
           <CredentialStrip
-            code={MOCK.code}
+            code={r.passcode}
             rows={[
-              { label: "Participant", value: MOCK.name },
-              { label: "Category", value: MOCK.category },
-              { label: "Mode", value: MOCK.mode },
+              { label: "Participant", value: name },
+              { label: "Category", value: r.categoryName },
+              { label: "Mode", value: r.mode },
+              { label: "Amount", value: naira(r.amountKobo) },
             ]}
           />
         </div>
@@ -33,18 +44,23 @@ export default function SuccessPage() {
         </p>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <CopyButton value={MOCK.code} label="Copy passcode" className="btn-primary" />
-          <button type="button" className="btn-secondary">Download as PDF</button>
-          <button type="button" className="btn-secondary">Send to my email again</button>
+          <CopyButton value={r.passcode} label="Copy code" className="btn-primary" />
+          <Link href="/photo-card" className="btn-secondary">Make my photo card</Link>
         </div>
+
+        <p className="help mt-4">
+          {mailed
+            ? `A copy has been emailed to ${user.slice(0, 1)}***@${domain}. If it has not arrived in a few minutes, check your spam folder.`
+            : "Write this code down now. You can retrieve it at any time using your membership number or email address."}
+        </p>
 
         <div className="mt-12 border-t border-line pt-8">
           <h2 className="text-[20px]">What happens next</h2>
           <ol className="mt-4 space-y-4">
             {[
-              "Payment is confirmed by the branch within 24 hours. Until then the passcode works for the photo card but not for the certificate.",
-              "Virtual participants use the passcode on the Join online page from 30 minutes before start time.",
-              "The e-certificate opens after attendance is marked on the seminar day.",
+              "The branch confirms your payment against the bank record. Until then your code works for the photo card but not the certificate.",
+              "Virtual participants use this code on the Join online page from 30 minutes before start time.",
+              "Your e-certificate opens after the seminar, once attendance has been recorded.",
             ].map((t, i) => (
               <li key={i} className="flex gap-4">
                 <span className="mono shrink-0 text-[14px] text-gold">{i + 1}.</span>
@@ -52,7 +68,6 @@ export default function SuccessPage() {
               </li>
             ))}
           </ol>
-          <Link href="/join" className="btn-secondary mt-8">Go to Join online</Link>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
-import PasscodeGate from "@/components/PasscodeGate";
+import JoinGate from "./JoinGate";
 import { event } from "@/lib/event";
 
 export const metadata: Metadata = { title: "Join online" };
@@ -29,7 +29,7 @@ export default function JoinPage() {
           </div>
         )}
 
-        {state === "open" && <PasscodeGate cta="Open meeting" />}
+        {state === "open" && <JoinGate />}
 
         {state === "after" && (
           <p className="text-center text-[17px] text-muted">This session has ended.</p>

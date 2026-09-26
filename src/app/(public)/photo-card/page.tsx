@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
-import PasscodeGate from "@/components/PasscodeGate";
+import PhotoCardGate from "./PhotoCardGate";
 
 export const metadata: Metadata = { title: "Photo card" };
 
@@ -23,7 +23,7 @@ export default function PhotoCardPage() {
 
         {/* TODO: on a valid code, advance to upload → crop → preview */}
         <div className="mt-10">
-          <PasscodeGate cta="Continue" />
+          <PhotoCardGate />
         </div>
       </div>
     </>

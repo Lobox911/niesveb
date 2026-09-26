@@ -1,6 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useMemo, useState } from "react";
+import Link from "next/link";
+import { submitRegistration } from "../actions";
 
 type Category = {
   id: string;
@@ -27,21 +28,22 @@ const TITLES = ["Esv.", "Mr", "Mrs", "Dr", "Prof", "Arc.", "Engr."];
 export default function RegisterForm({
   categories, venue, preselect,
 }: { categories: Category[]; venue: string; preselect?: string }) {
-  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    submitRegistration,
+    null as { error?: string; duplicate?: boolean } | null,
+  );
   const [categoryId, setCategoryId] = useState(
     categories.find((c) => c.key === preselect)?.id ?? "",
   );
   const [mode, setMode] = useState<"physical" | "virtual">("physical");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
 
   const chosen = useMemo(
     () => categories.find((c) => c.id === categoryId),
     [categories, categoryId],
   );
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const checkBeforeSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     const fd = new FormData(e.currentTarget);
     const next: Record<string, string> = {};
 
@@ -66,13 +68,9 @@ export default function RegisterForm({
 
     setErrors(next);
     if (Object.keys(next).length) {
+      e.preventDefault();
       document.getElementById("error-summary")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
     }
-
-    setBusy(true);
-    // TODO: POST to /api/registrations, then redirect with the issued passcode.
-    router.push("/register/success");
   };
 
   const Err = ({ name }: { name: string }) =>
@@ -83,7 +81,16 @@ export default function RegisterForm({
     ) : null;
 
   return (
-    <form onSubmit={submit} noValidate className="mt-12 max-w-[560px]">
+    <form action={action} onSubmit={checkBeforeSubmit} noValidate className="mt-12 max-w-[560px]">
+      {state?.error && (
+        <div className="mb-8 rounded border border-danger bg-white p-4">
+          <p role="alert" className="text-[15px] text-danger">{state.error}</p>
+          {state.duplicate && (
+            <Link href="/retrieve" className="btn-secondary mt-4">Retrieve my code</Link>
+          )}
+        </div>
+      )}
+
       {Object.keys(errors).length > 0 && (
         <div id="error-summary" className="mb-8 rounded border border-danger bg-white p-4">
           <h3 className="text-[17px] text-danger">Check these fields</h3>
@@ -206,22 +213,15 @@ export default function RegisterForm({
           <p className="help">Set by your category.</p>
         </div>
 
-        <div>
-          <label className="label" htmlFor="proof">Proof of payment</label>
-          <input id="proof" name="proof" type="file" accept=".jpg,.jpeg,.png,.pdf"
-            className="field py-2.5" />
-          <p className="help">JPG, PNG or PDF. Maximum 5MB. Optional but speeds up confirmation.</p>
-        </div>
-
         <label className="flex items-start gap-3 text-[15px] text-ink">
           <input type="checkbox" name="consent" className="mt-1" />
           <span>My name and firm may appear in the published participants list.</span>
         </label>
       </div>
 
-      <button type="submit" disabled={busy}
+      <button type="submit" disabled={pending}
         className="btn-primary mt-8 min-h-[50px] px-8 disabled:opacity-60">
-        {busy ? "Submitting" : "Submit registration"}
+        {pending ? "Submitting" : "Submit registration"}
       </button>
     </form>
   );
