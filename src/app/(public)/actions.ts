@@ -15,6 +15,24 @@ import { sendPasscodeEmail } from "@/lib/email";
 
 const RECEIPT_COOKIE = "niesv_last_registration";
 
+/**
+ * A URL arriving from the browser is an untrusted string, and it ends up in an
+ * `href` on the admin screen. Accepting only our own Blob host means a
+ * submitted `javascript:` or an attacker's link cannot be planted there for an
+ * officer to click while reviewing payments.
+ */
+function blobUrl(raw: string): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return null;
+    if (!u.hostname.endsWith(".blob.vercel-storage.com")) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 async function siteUrl() {
   const h = await headers();
   const host = h.get("host") ?? "localhost:3000";
@@ -69,6 +87,11 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
   }
   if (!txnRef) return { error: "Enter the transaction reference or teller number from your payment." };
 
+  const proofUrl = blobUrl(text("proofUrl"));
+  if (!proofUrl) {
+    return { error: "Attach the teller or receipt for your payment, and wait for it to finish uploading before submitting." };
+  }
+
   // Duplicates are per event: attending last year must not block this year.
   if (membershipNo) {
     const dupe = await db
@@ -110,12 +133,12 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
       membershipNo,
       email,
       phone,
-      firm: text("firm") || null,
       categoryId: cat.id,
       mode,
       consentPublish: formData.get("consent") === "on",
       amountKobo: cat.feeKobo,
       txnRef,
+      proofUrl,
       status: "pending",
     })
     .returning({ id: registrations.id });

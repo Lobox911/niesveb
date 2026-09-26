@@ -2,6 +2,7 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { submitRegistration } from "../actions";
+import FileUpload from "@/components/FileUpload";
 
 type Category = {
   id: string;
@@ -36,6 +37,7 @@ export default function RegisterForm({
     categories.find((c) => c.key === preselect)?.id ?? "",
   );
   const [mode, setMode] = useState<"physical" | "virtual">("physical");
+  const [proofUrl, setProofUrl] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const chosen = useMemo(
@@ -64,6 +66,9 @@ export default function RegisterForm({
     }
     if (!String(fd.get("txnRef") || "").trim()) {
       next.txnRef = "Enter the transaction reference or teller number from your payment.";
+    }
+    if (!proofUrl) {
+      next.proofUrl = "Attach the teller or receipt for your payment. Wait for it to finish uploading.";
     }
 
     setErrors(next);
@@ -194,16 +199,24 @@ export default function RegisterForm({
         </div>
 
         <div>
-          <label className="label" htmlFor="firm">Firm or organisation</label>
-          <input id="firm" name="firm" className="field" />
-        </div>
-
-        <div>
           <label className="label" htmlFor="txnRef">Transaction reference or teller number</label>
           <input id="txnRef" name="txnRef" className="field-mono"
             aria-invalid={!!errors.txnRef} placeholder="Example UBA-TRX-990218-XYZ" />
           <p className="help">From the receipt of your payment into the branch account.</p>
           <Err name="txnRef" />
+        </div>
+
+        <div id="proofUrl">
+          <FileUpload
+            name="proofUrl"
+            label="Attach your teller or receipt"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            folder="proofs"
+            maxMb={5}
+            help="A photograph or PDF of the teller, transfer receipt or bank alert. JPG, PNG, WebP or PDF, up to 5MB. It uploads as soon as you choose it."
+            onUploaded={(url) => { setProofUrl(url); setErrors((e) => { const { proofUrl: _drop, ...rest } = e; return rest; }); }}
+          />
+          <Err name="proofUrl" />
         </div>
 
         <div>
@@ -215,7 +228,7 @@ export default function RegisterForm({
 
         <label className="flex items-start gap-3 text-[15px] text-ink">
           <input type="checkbox" name="consent" className="mt-1" />
-          <span>My name and firm may appear in the published participants list.</span>
+          <span>My name may appear in the published participants list.</span>
         </label>
       </div>
 

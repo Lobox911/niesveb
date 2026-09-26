@@ -10,6 +10,25 @@ import { getSession } from "@/lib/auth";
  * failed at the edge with a 413 before any of our code ran. Going browser →
  * Blob removes the ceiling entirely; the action afterwards carries only a URL.
  */
+
+const IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/svg+xml",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+  "application/pdf",
+];
+
+/**
+ * Proof of payment is uploaded by the participant, who has no account — there
+ * is nobody to authenticate. So this one prefix is open, and is kept narrow to
+ * limit what that buys an abuser: photographs and PDFs only, 5MB, and nothing
+ * outside `proofs/`. Everything else on the store still requires an admin.
+ */
+const PUBLIC_PREFIX = "proofs/";
+
 export async function POST(request: Request): Promise<Response> {
   const body = (await request.json()) as HandleUploadBody;
 
@@ -17,7 +36,15 @@ export async function POST(request: Request): Promise<Response> {
     const result = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async () => {
+      onBeforeGenerateToken: async (pathname) => {
+        if (pathname.startsWith(PUBLIC_PREFIX)) {
+          return {
+            allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+            maximumSizeInBytes: 5 * 1024 * 1024,
+            addRandomSuffix: true,
+          };
+        }
+
         // The token is what authorises writing to the store, so the check
         // belongs here. Without it the endpoint is an open upload bucket.
         const session = await getSession();
@@ -26,15 +53,7 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         return {
-          allowedContentTypes: [
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/svg+xml",
-            "image/x-icon",
-            "image/vnd.microsoft.icon",
-            "application/pdf",
-          ],
+          allowedContentTypes: IMAGE_TYPES,
           maximumSizeInBytes: 15 * 1024 * 1024,
           addRandomSuffix: true,
         };
