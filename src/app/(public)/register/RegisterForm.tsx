@@ -64,9 +64,6 @@ export default function RegisterForm({
     if (chosen?.requiresMembershipNo && !String(fd.get("membershipNo") || "").trim()) {
       next.membershipNo = "Enter your NIESV membership number.";
     }
-    if (!String(fd.get("txnRef") || "").trim()) {
-      next.txnRef = "Enter the transaction reference or teller number from your payment.";
-    }
     if (!proofUrl) {
       next.proofUrl = "Attach the teller or receipt for your payment. Wait for it to finish uploading.";
     }
@@ -196,14 +193,6 @@ export default function RegisterForm({
           <input id="phone" name="phone" inputMode="numeric" className="field-mono"
             aria-invalid={!!errors.phone} placeholder="Example 08031234567" />
           <Err name="phone" />
-        </div>
-
-        <div>
-          <label className="label" htmlFor="txnRef">Transaction reference or teller number</label>
-          <input id="txnRef" name="txnRef" className="field-mono"
-            aria-invalid={!!errors.txnRef} placeholder="Example UBA-TRX-990218-XYZ" />
-          <p className="help">From the receipt of your payment into the branch account.</p>
-          <Err name="txnRef" />
         </div>
 
         <div id="proofUrl">

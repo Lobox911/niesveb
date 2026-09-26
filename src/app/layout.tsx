@@ -46,12 +46,32 @@ export async function generateMetadata(): Promise<Metadata> {
       ? `${featured.title}. ${featured.theme}. ${featured.venue}.`
       : branch.branchName);
 
+  // Two domains serve this application. Without a canonical, search engines
+  // index both and split whatever ranking the branch earns between them.
+  const base = branch.canonicalUrl ? new URL(branch.canonicalUrl) : undefined;
+
   return {
+    metadataBase: base,
     title: { default: title, template: `%s — ${branch.branchName}` },
     description,
-    robots: { index: true, follow: true },
+    alternates: base ? { canonical: "/" } : undefined,
+    robots: branch.searchIndexable
+      ? { index: true, follow: true }
+      : { index: false, follow: false },
+    verification: branch.googleVerification
+      ? { google: branch.googleVerification }
+      : undefined,
     icons: branch.faviconUrl ? { icon: branch.faviconUrl } : undefined,
     openGraph: {
+      type: "website",
+      siteName: branch.branchName,
+      title,
+      description,
+      url: base ? "/" : undefined,
+      images: branch.ogImageUrl ? [branch.ogImageUrl] : undefined,
+    },
+    twitter: {
+      card: branch.ogImageUrl ? "summary_large_image" : "summary",
       title,
       description,
       images: branch.ogImageUrl ? [branch.ogImageUrl] : undefined,
@@ -80,6 +100,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <head>
         {overrides && <style>{`:root { ${overrides} }`}</style>}
+        {branch.analyticsId && (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${branch.analyticsId}`} />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${branch.analyticsId.replace(/'/g, "")}')`,
+              }}
+            />
+          </>
+        )}
       </head>
       <body>{children}</body>
     </html>

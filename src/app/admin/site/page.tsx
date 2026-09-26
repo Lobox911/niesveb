@@ -127,6 +127,10 @@ export default async function SitePage() {
           ogImageUrl={s?.ogImageUrl ?? null}
           primaryColor={s?.primaryColor ?? "#0B6E4F"}
           accentColor={s?.accentColor ?? "#B08A2E"}
+          canonicalUrl={s?.canonicalUrl ?? ""}
+          searchIndexable={s?.searchIndexable ?? true}
+          googleVerification={s?.googleVerification ?? ""}
+          analyticsId={s?.analyticsId ?? ""}
         />
       </div>
     </div>

@@ -73,7 +73,6 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
   const email = text("email").toLowerCase();
   const phone = text("phone").replace(/\D/g, "");
   const membershipNo = text("membershipNo").toUpperCase() || null;
-  const txnRef = text("txnRef");
   const mode = text("mode") === "virtual" ? "virtual" : "physical";
 
   if (!surname) return { error: "Enter your surname." };
@@ -85,8 +84,6 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
   if (cat.requiresMembershipNo && !membershipNo) {
     return { error: "Enter your NIESV membership number for this category." };
   }
-  if (!txnRef) return { error: "Enter the transaction reference or teller number from your payment." };
-
   const proofUrl = blobUrl(text("proofUrl"));
   if (!proofUrl) {
     return { error: "Attach the teller or receipt for your payment, and wait for it to finish uploading before submitting." };
@@ -137,7 +134,6 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
       mode,
       consentPublish: formData.get("consent") === "on",
       amountKobo: cat.feeKobo,
-      txnRef,
       proofUrl,
       status: "pending",
     })

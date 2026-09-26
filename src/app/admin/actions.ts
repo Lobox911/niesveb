@@ -662,6 +662,39 @@ export async function updateBranding(formData: FormData) {
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (formData.has("metaTitle")) patch.metaTitle = String(formData.get("metaTitle") ?? "").trim() || null;
   if (formData.has("metaDescription")) patch.metaDescription = String(formData.get("metaDescription") ?? "").trim() || null;
+
+  if (formData.has("canonicalUrl")) {
+    const raw = String(formData.get("canonicalUrl") ?? "").trim().replace(/\/+$/, "");
+    if (!raw) {
+      patch.canonicalUrl = null;
+    } else {
+      // An invalid address here would break every page's <head>, so it is
+      // rejected rather than stored and discovered later.
+      try {
+        const u = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+        if (u.protocol !== "https:") return { error: "The website address must start with https." };
+        patch.canonicalUrl = `https://${u.host}`;
+      } catch {
+        return { error: "Enter the website address as a full domain, for example https://www.niesvebonyi.com.ng" };
+      }
+    }
+  }
+
+  if (formData.has("searchIndexable")) {
+    patch.searchIndexable = formData.get("searchIndexable") === "on";
+  }
+
+  if (formData.has("googleVerification")) {
+    patch.googleVerification = String(formData.get("googleVerification") ?? "").trim() || null;
+  }
+
+  if (formData.has("analyticsId")) {
+    const raw = String(formData.get("analyticsId") ?? "").trim().toUpperCase();
+    if (raw && !/^(G-[A-Z0-9]{4,20}|UA-\d{4,12}-\d{1,4})$/.test(raw)) {
+      return { error: "A measurement ID looks like G-XXXXXXXXXX. Copy it from the Google Analytics data stream." };
+    }
+    patch.analyticsId = raw || null;
+  }
   if (primary) patch.primaryColor = primary;
   if (accent) patch.accentColor = accent;
 

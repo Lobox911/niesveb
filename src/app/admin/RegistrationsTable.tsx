@@ -6,7 +6,7 @@ import { confirmPayment, rejectPayment } from "./actions";
 type Row = {
   id: string; passcode: string; title: string | null; surname: string; firstName: string;
   membershipNo: string | null; email: string; phone: string; firm: string | null;
-  categoryId: string; mode: string; amount: string; txnRef: string;
+  categoryId: string; mode: string; amount: string; txnRef: string | null;
   proofUrl: string | null; status: string; rejectionReason: string | null; createdAt: string;
 };
 
@@ -112,7 +112,7 @@ export default function RegistrationsTable({
                 <td className="px-4 py-3 text-[14px] text-muted">{r.categoryId}</td>
                 <td className="px-4 py-3 text-[14px] capitalize text-muted">{r.mode}</td>
                 <td className="mono whitespace-nowrap px-4 py-3 text-right text-[14px] text-ink">{r.amount}</td>
-                <td className="mono px-4 py-3 text-[13px] text-muted">{r.txnRef}</td>
+                <td className="mono px-4 py-3 text-[13px] text-muted">{r.txnRef || "—"}</td>
                 <td className="px-4 py-3">
                   <span className={`mono rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${STATUS_TONE[r.status]}`}>
                     {r.status}
@@ -186,10 +186,12 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
               <span className="text-[14px] text-muted">Declared amount</span>
               <span className="mono text-[26px] text-ink">{row.amount}</span>
             </div>
-            <div className="mt-4 border-t border-line pt-4">
-              <p className="text-[13px] text-muted">Bank reference / teller no.</p>
-              <p className="mono mt-1 select-all text-[15px] text-ink">{row.txnRef}</p>
-            </div>
+            {row.txnRef && (
+              <div className="mt-4 border-t border-line pt-4">
+                <p className="text-[13px] text-muted">Bank reference / teller no.</p>
+                <p className="mono mt-1 select-all text-[15px] text-ink">{row.txnRef}</p>
+              </div>
+            )}
           </div>
 
           <h3 className="mono mt-8 text-[12px] uppercase tracking-wider text-muted">Proof of payment</h3>
@@ -201,7 +203,7 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
             </a>
           ) : (
             <p className="mt-3 rounded border border-line bg-paper p-4 text-[14px] text-muted">
-              No document uploaded. Verify against the bank statement using the reference above.
+              No document uploaded. Check this payment against the bank statement before confirming it.
             </p>
           )}
 

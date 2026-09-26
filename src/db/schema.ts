@@ -61,6 +61,21 @@ export const branchSettings = pgTable("branch_settings", {
   ogImageUrl: text("og_image_url"),
   ogImagePath: text("og_image_path"),
 
+  /* The address the site should be indexed under. Two domains serve this
+     application — the custom domain and the vercel.app one — and without a
+     canonical, search engines treat them as two sites competing with each
+     other. Blank falls back to the request host, which is the old behaviour. */
+  canonicalUrl: text("canonical_url"),
+
+  /* Off while the site is being prepared, on once it is announced. A branch
+     that soft-launches wants the pages unreachable from search until the
+     content is real. */
+  searchIndexable: boolean("search_indexable").notNull().default(true),
+
+  /* Pasted from Search Console and Analytics rather than deployed. */
+  googleVerification: text("google_verification"),
+  analyticsId: text("analytics_id"),
+
   /* Only the two brand colours are editable. The remaining five in the
      palette (ink, paper, line, muted, danger) stay fixed because they carry
      the contrast guarantees for body text, and a branch cannot check those
@@ -209,7 +224,10 @@ export const registrations = pgTable(
     consentPublish: boolean("consent_publish").notNull().default(false),
 
     amountKobo: integer("amount_kobo").notNull(),
-    txnRef: text("txn_ref").notNull(),
+    /* Nullable: the proof of payment carries the reference, and asking
+       someone to retype a number that is already legible in the image they
+       just uploaded is duplicate work. Old rows keep what they recorded. */
+    txnRef: text("txn_ref"),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     proofUrl: text("proof_url"),
 

@@ -18,10 +18,13 @@ function contrastWithWhite(hex: string): number {
 
 export default function Branding({
   metaTitle, metaDescription, faviconUrl, ogImageUrl, primaryColor, accentColor,
+  canonicalUrl, searchIndexable, googleVerification, analyticsId,
 }: {
   metaTitle: string; metaDescription: string;
   faviconUrl: string | null; ogImageUrl: string | null;
   primaryColor: string; accentColor: string;
+  canonicalUrl: string; searchIndexable: boolean;
+  googleVerification: string; analyticsId: string;
 }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
@@ -80,6 +83,17 @@ export default function Branding({
           <legend className="mono px-2 text-[12px] uppercase tracking-wider text-muted">Search and sharing</legend>
           <div className="space-y-4">
             <div>
+              <label className="label" htmlFor="canonicalUrl">Website address</label>
+              <input id="canonicalUrl" name="canonicalUrl" className="field-mono"
+                defaultValue={canonicalUrl} placeholder="https://www.niesvebonyi.com.ng" />
+              <p className="help">
+                The one address the site should be known by. More than one
+                address reaches this site, and without this setting search
+                engines treat them as separate sites competing with each other.
+              </p>
+            </div>
+
+            <div>
               <label className="label" htmlFor="metaTitle">Page title</label>
               <input id="metaTitle" name="metaTitle" className="field" defaultValue={metaTitle} />
               <p className="help">
@@ -110,6 +124,40 @@ export default function Branding({
                 accept="image/png,image/x-icon,image/svg+xml"
                 help="PNG, ICO or SVG, up to 1MB. Square, at least 64 by 64. The crest works well."
               />
+            </div>
+
+            <div>
+              <label className="flex items-start gap-3 text-[15px] text-ink">
+                <input type="checkbox" name="searchIndexable" defaultChecked={searchIndexable} className="mt-1" />
+                <span>
+                  Allow this site to appear in search results
+                  <span className="help mt-0.5 block">
+                    Turn this off while the site is being prepared. Google drops
+                    the pages within days and takes weeks to put them back, so
+                    leave it on once the seminar has been announced.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="analyticsId">Google Analytics measurement ID</label>
+              <input id="analyticsId" name="analyticsId" className="field-mono"
+                defaultValue={analyticsId} placeholder="G-XXXXXXXXXX" />
+              <p className="help">
+                From the data stream in Google Analytics. Leave blank to collect
+                nothing. Visitor numbers only, no personal details.
+              </p>
+            </div>
+
+            <div>
+              <label className="label" htmlFor="googleVerification">Search Console verification code</label>
+              <input id="googleVerification" name="googleVerification" className="field-mono"
+                defaultValue={googleVerification} />
+              <p className="help">
+                When Search Console offers the HTML tag method, paste only the
+                content value, not the whole tag.
+              </p>
             </div>
 
             <div>
