@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { uploadBanner, removeBanner } from "../actions";
+import FileUpload from "@/components/FileUpload";
 
 export default function BannerUpload({
   current, alt,
@@ -40,12 +41,15 @@ export default function BannerUpload({
           if (res?.ok) setTimeout(() => setMsg(null), 4000);
         })}
       >
-        <label className="label" htmlFor="bannerImage">
-          {current ? "Replace the banner" : "Upload a banner"}
-        </label>
-        <input id="bannerImage" name="bannerImage" type="file"
-          accept="image/jpeg,image/png,image/webp" className="field py-2.5" />
-        <p className="help">JPG, PNG or WebP, maximum 5MB. Around 1600 by 400.</p>
+        <FileUpload
+          name="bannerImageUrl"
+          folder="banner"
+          maxMb={8}
+          currentUrl={current}
+          label={current ? "Replace the banner" : "Upload a banner"}
+          accept="image/jpeg,image/png,image/webp"
+          help="JPG, PNG or WebP, up to 8MB. Around 1600 by 400."
+        />
 
         <label className="label mt-4" htmlFor="bannerImageAlt">Image description</label>
         <input id="bannerImageAlt" name="bannerImageAlt" className="field" defaultValue={alt ?? ""} />

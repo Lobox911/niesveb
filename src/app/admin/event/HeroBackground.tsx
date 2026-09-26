@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { uploadHeroBackground } from "../actions";
+import FileUpload from "@/components/FileUpload";
 
 /**
  * One background for the whole hero. The branch vets it once, which is what
@@ -33,12 +34,15 @@ export default function HeroBackground({
           </div>
         )}
 
-        <label className="label" htmlFor="heroImage">
-          {current ? "Replace the background" : "Upload a background"}
-        </label>
-        <input id="heroImage" name="heroImage" type="file"
-          accept="image/jpeg,image/png,image/webp" className="field py-2.5" />
-        <p className="help">JPG, PNG or WebP, maximum 5MB. Landscape, around 1600 by 900.</p>
+        <FileUpload
+          name="heroImageUrl"
+          folder="hero"
+          maxMb={8}
+          currentUrl={current}
+          label={current ? "Replace the background" : "Upload a background"}
+          accept="image/jpeg,image/png,image/webp"
+          help="JPG, PNG or WebP, up to 8MB. Landscape, around 1600 by 900."
+        />
 
         <label className="label mt-4" htmlFor="heroImageAlt">Image description</label>
         <input id="heroImageAlt" name="heroImageAlt" className="field" defaultValue={alt ?? ""} />

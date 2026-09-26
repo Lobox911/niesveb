@@ -1,13 +1,13 @@
 "use client";
 import { useState, useTransition } from "react";
 import { uploadFlyer, removeFlyer } from "../actions";
+import FileUpload from "@/components/FileUpload";
 
 export default function FlyerUpload({
   eventId, current, alt,
 }: { eventId: string; current: string | null; alt: string | null }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
 
   const isPdf = current?.toLowerCase().endsWith(".pdf");
 
@@ -51,20 +51,18 @@ export default function FlyerUpload({
           fd.set("eventId", eventId);
           const res = await uploadFlyer(fd);
           setMsg(res);
-          if (res?.ok) { setFileName(null); setTimeout(() => setMsg(null), 4000); }
+          if (res?.ok) setTimeout(() => setMsg(null), 4000);
         })}
       >
-        <label className="label" htmlFor="flyer">
-          {current ? "Replace the flyer" : "Upload a flyer"}
-        </label>
-        <input
-          id="flyer" name="flyer" type="file"
+        <FileUpload
+          name="flyerUrl"
+          folder="flyers"
+          maxMb={10}
+          currentUrl={current}
+          label={current ? "Replace the flyer" : "Upload a flyer"}
           accept="image/jpeg,image/png,image/webp,application/pdf"
-          className="field py-2.5"
-          onChange={(e) => { setFileName(e.target.files?.[0]?.name ?? null); setMsg(null); }}
+          help="JPG, PNG, WebP or PDF, up to 10MB. Portrait artwork is fine. The file uploads as soon as you choose it."
         />
-        <p className="help">JPG, PNG, WebP or PDF. Maximum 8MB. Portrait artwork is fine.</p>
-        {fileName && <p className="mono mt-2 text-[13px] text-ink">{fileName}</p>}
 
         <label className="label mt-4" htmlFor="flyerAlt">Description for screen readers</label>
         <input

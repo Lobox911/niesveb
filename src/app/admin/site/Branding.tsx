@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { updateBranding } from "../actions";
+import FileUpload from "@/components/FileUpload";
 
 /** Relative luminance check, mirrored from lib/site so the warning can run
  *  as you type rather than only after saving. */
@@ -96,27 +97,35 @@ export default function Branding({
               </p>
             </div>
             <div>
-              <label className="label" htmlFor="favicon">Favicon</label>
               {faviconUrl && (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={faviconUrl} alt="Current favicon" className="mb-2 h-8 w-8 rounded border border-line" />
               )}
-              <input id="favicon" name="favicon" type="file"
-                accept="image/png,image/x-icon,image/svg+xml" className="field py-2.5" />
-              <p className="help">PNG, ICO or SVG, maximum 1MB. Square, at least 64 by 64. The crest works well.</p>
+              <FileUpload
+                name="faviconUrl"
+                folder="favicon"
+                maxMb={1}
+                currentUrl={faviconUrl}
+                label="Favicon"
+                accept="image/png,image/x-icon,image/svg+xml"
+                help="PNG, ICO or SVG, up to 1MB. Square, at least 64 by 64. The crest works well."
+              />
             </div>
+
             <div>
-              <label className="label" htmlFor="ogImage">Share image</label>
               {ogImageUrl && (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={ogImageUrl} alt="Current share image" className="mb-2 h-24 w-full rounded border border-line object-cover" />
               )}
-              <input id="ogImage" name="ogImage" type="file"
-                accept="image/jpeg,image/png,image/webp" className="field py-2.5" />
-              <p className="help">
-                The picture that appears when the link is shared on WhatsApp or
-                Facebook. 1200 by 630 works best. The flyer is a good choice.
-              </p>
+              <FileUpload
+                name="ogImageUrl"
+                folder="og"
+                maxMb={4}
+                currentUrl={ogImageUrl}
+                label="Share image"
+                accept="image/jpeg,image/png,image/webp"
+                help="The picture shown when the link is shared on WhatsApp or Facebook. 1200 by 630 works best — the flyer is a good choice."
+              />
             </div>
           </div>
         </fieldset>

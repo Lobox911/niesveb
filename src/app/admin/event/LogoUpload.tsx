@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { uploadLogo } from "../actions";
+import FileUpload from "@/components/FileUpload";
 
 export default function LogoUpload({ current }: { current: string | null }) {
   const [pending, start] = useTransition();
@@ -25,11 +26,15 @@ export default function LogoUpload({ current }: { current: string | null }) {
             <img src={current} alt="Current branch crest" className="mt-2 h-14 w-auto" />
           </div>
         )}
-        <label className="label" htmlFor="logo">{current ? "Replace the crest" : "Upload the crest"}</label>
-        <input id="logo" name="logo" type="file"
+        <FileUpload
+          name="logoUrl"
+          folder="brand"
+          maxMb={2}
+          currentUrl={current}
+          label={current ? "Replace the crest" : "Upload the crest"}
           accept="image/png,image/webp,image/svg+xml,image/jpeg"
-          className="field py-2.5" />
-        <p className="help">PNG, WebP, SVG or JPG. Maximum 2MB.</p>
+          help="PNG, WebP, SVG or JPG, up to 2MB. A transparent PNG works best."
+        />
 
         {msg?.error && <p role="alert" className="mt-3 text-[14px] text-danger">{msg.error}</p>}
         {msg?.ok && <p role="status" className="mt-3 text-[14px] text-green">Saved.</p>}

@@ -9,7 +9,7 @@ import {
 import { authenticate, createSession, destroySession, requireOfficer, hashPassword } from "@/lib/auth";
 import { normalisePasscode } from "@/lib/passcode";
 import { sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
-import { put, del } from "@vercel/blob";
+import { del } from "@vercel/blob";
 
 /* ---------- auth ---------- */
 
@@ -282,46 +282,65 @@ export async function deleteEvent(id: string) {
   return { ok: true };
 }
 
+/**
+ * Files are uploaded browser → Blob before the form is submitted (see
+ * components/FileUpload and api/blob-upload), so an action receives a URL,
+ * never bytes. This keeps the request well under Vercel's 4.5MB function
+ * limit — the limit that made a phone photo of a flyer fail with a 413.
+ *
+ * The URL still has to be checked: a form field is user input, and accepting
+ * an arbitrary one would let someone point the site at an image they host.
+ */
+function blobUrl(formData: FormData, field: string): string | null {
+  const raw = String(formData.get(field) ?? "").trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return null;
+    if (!u.hostname.endsWith(".blob.vercel-storage.com")) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Blob pathname, kept so the files can be re-uploaded to another store at
+ *  handover without rewriting rows. */
+function blobPath(url: string): string {
+  try { return new URL(url).pathname.replace(/^\//, ""); } catch { return ""; }
+}
+
 /* ---------- seminar flyer ---------- */
 
 export async function uploadFlyer(formData: FormData) {
   const officer = await requireOfficer();
   if (officer.role !== "admin") return { error: "Only a branch administrator can change the flyer." };
 
-  const file = formData.get("flyer");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image or PDF to upload." };
-
-  const ALLOWED = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-  if (!ALLOWED.includes(file.type)) {
-    return { error: "The flyer must be a JPG, PNG, WebP or PDF." };
-  }
-  if (file.size > 8 * 1024 * 1024) {
-    return { error: "That file is larger than 8MB. Export it at a smaller size and try again." };
-  }
-
-  const stamp = Date.now();
-  const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
-
-  // addRandomSuffix keeps old uploads reachable; the row points at the newest.
   const eventId = String(formData.get("eventId") ?? "");
   if (!eventId) return { error: "No event selected." };
 
-  const blob = await put(`flyers/${stamp}-${safe}`, file, {
-    access: "public",
-    addRandomSuffix: false,
-  });
-
   const alt = String(formData.get("flyerAlt") ?? "").trim() || "Seminar flyer";
+  const url = blobUrl(formData, "flyerUrl");
+
+  // Alt text alone is a valid save once a flyer exists.
+  if (!url) {
+    const existing = await db.select({ u: events.flyerUrl }).from(events).where(eq(events.id, eventId)).limit(1);
+    if (!existing[0]?.u) return { error: "Choose an image or PDF to upload." };
+    await db.update(events).set({ flyerAlt: alt, updatedAt: new Date() }).where(eq(events.id, eventId));
+    revalidatePath("/", "layout");
+    revalidatePath(`/admin/events/${eventId}`);
+    return { ok: true };
+  }
 
   await db
     .update(events)
-    .set({ flyerUrl: blob.url, flyerPath: blob.pathname, flyerAlt: alt, updatedAt: new Date() })
+    .set({ flyerUrl: url, flyerPath: blobPath(url), flyerAlt: alt, updatedAt: new Date() })
     .where(eq(events.id, eventId));
 
-  await audit(officer.id, "upload_flyer", "events", eventId, { pathname: blob.pathname });
+  await audit(officer.id, "upload_flyer", "events", eventId, { path: blobPath(url) });
   revalidatePath("/", "layout");
-  revalidatePath("/admin/event");
-  return { ok: true, url: blob.url };
+  revalidatePath(`/admin/events/${eventId}`);
+  return { ok: true, url };
 }
 
 export async function removeFlyer(eventId: string) {
@@ -401,21 +420,14 @@ export async function uploadLogo(formData: FormData) {
   const officer = await requireOfficer();
   if (officer.role !== "admin") return { error: "Only a branch administrator can change the crest." };
 
-  const file = formData.get("logo");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload." };
-  if (!["image/png", "image/webp", "image/svg+xml", "image/jpeg"].includes(file.type)) {
-    return { error: "The crest must be a PNG, WebP, SVG or JPG." };
-  }
-  if (file.size > 2 * 1024 * 1024) return { error: "That file is larger than 2MB." };
-
-  const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
-  const blob = await put(`brand/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
+  const url = blobUrl(formData, "logoUrl");
+  if (!url) return { error: "Choose an image to upload." };
 
   await db.update(branchSettings)
-    .set({ logoUrl: blob.url, logoPath: blob.pathname, updatedAt: new Date() })
+    .set({ logoUrl: url, logoPath: blobPath(url), updatedAt: new Date() })
     .where(eq(branchSettings.id, 1));
 
-  await audit(officer.id, "upload_logo", "branch_settings", "1", { pathname: blob.pathname });
+  await audit(officer.id, "upload_logo", "branch_settings", "1", { path: blobPath(url) });
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -584,26 +596,15 @@ export async function uploadHeroBackground(formData: FormData) {
   const tone = String(formData.get("heroTextTone") ?? "dark") === "light" ? "light" : "dark";
   const alt = String(formData.get("heroImageAlt") ?? "").trim() || null;
 
-  const file = formData.get("heroImage");
   const patch: Record<string, unknown> = { heroTextTone: tone, heroImageAlt: alt, updatedAt: new Date() };
 
-  if (file instanceof File && file.size > 0) {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      return { error: "The background must be a JPG, PNG or WebP." };
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      return { error: "That image is larger than 5MB. Export it smaller and try again." };
-    }
-    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
-    const blob = await put(`hero/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
-    patch.heroImageUrl = blob.url;
-    patch.heroImagePath = blob.pathname;
-  }
+  // Saving the tone without a new image is a normal edit, not an error.
+  const url = blobUrl(formData, "heroImageUrl");
+  if (url) { patch.heroImageUrl = url; patch.heroImagePath = blobPath(url); }
 
   await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
   await audit(officer.id, "update_hero_background", "branch_settings", "1", { tone });
   revalidatePath("/", "layout");
-  revalidatePath("/admin/event");
   return { ok: true };
 }
 
@@ -614,21 +615,10 @@ export async function uploadBanner(formData: FormData) {
   if (officer.role !== "admin") return { error: "Only a branch administrator can change the banner." };
 
   const alt = String(formData.get("bannerImageAlt") ?? "").trim() || null;
-  const file = formData.get("bannerImage");
   const patch: Record<string, unknown> = { bannerImageAlt: alt, updatedAt: new Date() };
 
-  if (file instanceof File && file.size > 0) {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      return { error: "The banner must be a JPG, PNG or WebP." };
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      return { error: "That image is larger than 5MB. Export it smaller and try again." };
-    }
-    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
-    const blob = await put(`banner/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
-    patch.bannerImageUrl = blob.url;
-    patch.bannerImagePath = blob.pathname;
-  }
+  const url = blobUrl(formData, "bannerImageUrl");
+  if (url) { patch.bannerImageUrl = url; patch.bannerImagePath = blobPath(url); }
 
   await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
   await audit(officer.id, "update_banner", "branch_settings", "1");
@@ -675,22 +665,11 @@ export async function updateBranding(formData: FormData) {
   if (primary) patch.primaryColor = primary;
   if (accent) patch.accentColor = accent;
 
-  const upload = async (field: string, prefix: string, types: string[], maxMb: number) => {
-    const file = formData.get(field);
-    if (!(file instanceof File) || file.size === 0) return null;
-    if (!types.includes(file.type)) return { error: `That ${prefix} file type is not accepted.` };
-    if (file.size > maxMb * 1024 * 1024) return { error: `That ${prefix} is larger than ${maxMb}MB.` };
-    const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, "-").toLowerCase();
-    return put(`${prefix}/${Date.now()}-${safe}`, file, { access: "public", addRandomSuffix: false });
-  };
+  const favicon = blobUrl(formData, "faviconUrl");
+  if (favicon) { patch.faviconUrl = favicon; patch.faviconPath = blobPath(favicon); }
 
-  const fav = await upload("favicon", "favicon", ["image/png", "image/x-icon", "image/vnd.microsoft.icon", "image/svg+xml"], 1);
-  if (fav && "error" in fav) return fav;
-  if (fav) { patch.faviconUrl = fav.url; patch.faviconPath = fav.pathname; }
-
-  const og = await upload("ogImage", "og", ["image/jpeg", "image/png", "image/webp"], 3);
-  if (og && "error" in og) return og;
-  if (og) { patch.ogImageUrl = og.url; patch.ogImagePath = og.pathname; }
+  const og = blobUrl(formData, "ogImageUrl");
+  if (og) { patch.ogImageUrl = og; patch.ogImagePath = blobPath(og); }
 
   await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
   await audit(officer.id, "update_branding", "branch_settings", "1", { fields: Object.keys(patch) });
