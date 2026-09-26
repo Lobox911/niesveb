@@ -91,6 +91,67 @@ export const branchSettings = pgTable("branch_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/* ---------- pages ---------- */
+
+/**
+ * Two kinds of page live in one table, because the navigation menu has to
+ * order and hide them together.
+ *
+ * A 'system' page is machinery with words wrapped around it — /register writes
+ * to the database, /join and /certificate are passcode gates. Its copy, its
+ * menu label and its search description are all editable, and it can be taken
+ * out of the menu, but it cannot be deleted: deleting /register would not
+ * remove a page, it would remove registration. The route exists in code
+ * regardless of this row.
+ *
+ * A 'custom' page is only words — About Us, Executives, Contact. It is created
+ * and deleted freely and renders at /[slug] from `body`.
+ */
+export const pages = pgTable(
+  "pages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    slug: text("slug").notNull(),
+    kind: text("kind").notNull().default("custom"),   // 'system' | 'custom'
+
+    /* What the page calls itself, above the fold. */
+    title: text("title").notNull(),
+    intro: text("intro"),
+
+    /* Custom pages only. Paragraphs separated by a blank line; a line starting
+       with '## ' becomes a heading. Deliberately not HTML — the branch should
+       not be able to paste markup that breaks the page or carries a script. */
+    body: text("body"),
+
+    /* Editable copy for a system page, keyed by slot name. The defaults live
+       in code; only overrides are stored, so a slot the branch never touches
+       keeps improving when the code does. */
+    copy: text("copy"),   // JSON object of slot -> text
+
+    navLabel: text("nav_label"),
+    showInNav: boolean("show_in_nav").notNull().default(true),
+    navOrder: integer("nav_order").notNull().default(0),
+
+    /* Blank falls back to the page title and the branch description. */
+    metaTitle: text("meta_title"),
+    metaDescription: text("meta_description"),
+
+    /* Custom pages can carry their own banner; blank uses the branch one. */
+    bannerImageUrl: text("banner_image_url"),
+    bannerImagePath: text("banner_image_path"),
+    bannerImageAlt: text("banner_image_alt"),
+
+    published: boolean("published").notNull().default(true),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("pages_slug_idx").on(t.slug),
+    index("pages_nav_idx").on(t.showInNav, t.navOrder),
+  ],
+);
+
 /* ---------- events (many) ---------- */
 
 export const events = pgTable(

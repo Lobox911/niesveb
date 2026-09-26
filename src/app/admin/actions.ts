@@ -1,14 +1,15 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, sql } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import {
   db, registrations, attendance, auditLog, branchSettings, events, categories, officers,
-  heroSlides, advertRates, programmeItems,
+  heroSlides, advertRates, programmeItems, pages,
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer, hashPassword } from "@/lib/auth";
 import { normalisePasscode, generatePasscode } from "@/lib/passcode";
 import { dateRange, getBranch } from "@/lib/site";
+import { SYSTEM_PAGES, systemPage, slugify, RESERVED_SLUGS } from "@/lib/pages";
 import { headers } from "next/headers";
 import { sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
 import { del } from "@vercel/blob";
@@ -877,5 +878,181 @@ export async function addStandardCategories(eventId: string) {
   await audit(officer.id, "add_standard_categories", "categories", eventId, { count: standard.length });
   revalidatePath("/", "layout");
   revalidatePath(`/admin/events/${eventId}`);
+  return { ok: true };
+}
+
+/* ---------- pages ---------- */
+
+/**
+ * Seeds a row for each system page the first time the Pages section is opened,
+ * so the branch has something to edit and the menu has something to order.
+ * Idempotent: an existing row is left exactly as the branch left it.
+ */
+export async function ensureSystemPages() {
+  const existing = await db.select({ slug: pages.slug }).from(pages);
+  const have = new Set(existing.map((r) => r.slug));
+
+  const missing = SYSTEM_PAGES.filter((p) => !have.has(p.slug));
+  if (missing.length === 0) return;
+
+  await db.insert(pages).values(
+    missing.map((p) => ({
+      slug: p.slug,
+      kind: "system",
+      title: p.name,
+      navLabel: p.navLabel,
+      showInNav: p.showInNav,
+      navOrder: p.navOrder,
+      published: true,
+    })),
+  );
+}
+
+/** Copy, menu placement and search details for one page. */
+export async function updatePage(formData: FormData) {
+  const officer = await requireOfficer();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "That page no longer exists." };
+
+  const rows = await db.select().from(pages).where(eq(pages.id, id)).limit(1);
+  const page = rows[0];
+  if (!page) return { error: "That page no longer exists." };
+
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+
+  const title = text("title");
+  if (!title) return { error: "Enter a name for this page." };
+
+  const patch: Record<string, unknown> = {
+    title,
+    navLabel: text("navLabel") || null,
+    metaTitle: text("metaTitle") || null,
+    metaDescription: text("metaDescription") || null,
+    showInNav: formData.get("showInNav") === "on",
+    published: formData.get("published") === "on",
+    updatedAt: new Date(),
+  };
+
+  const order = Number(formData.get("navOrder"));
+  if (Number.isFinite(order)) patch.navOrder = Math.max(0, Math.round(order));
+
+  if (page.kind === "system") {
+    // Only known slots are stored, and only where they differ from the
+    // shipped wording. An empty box means "use the default", which is what
+    // lets the branch undo an edit without knowing the original text.
+    const sys = systemPage(page.slug);
+    const copy: Record<string, string> = {};
+    for (const slot of sys?.slots ?? []) {
+      const v = text(`copy.${slot.key}`);
+      if (v && v !== slot.value) copy[slot.key] = v;
+    }
+    patch.copy = Object.keys(copy).length ? JSON.stringify(copy) : null;
+  } else {
+    patch.intro = text("intro") || null;
+    patch.body = text("body") || null;
+    patch.bannerImageAlt = text("bannerImageAlt") || null;
+
+    const banner = blobUrl(formData, "bannerImageUrl");
+    if (banner) { patch.bannerImageUrl = banner; patch.bannerImagePath = blobPath(banner); }
+  }
+
+  await db.update(pages).set(patch).where(eq(pages.id, id));
+  await audit(officer.id, "update_page", "pages", page.slug, { fields: Object.keys(patch) });
+
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
+  return { ok: true };
+}
+
+/** A new text page, rendered at /slug. */
+export async function createPage(formData: FormData) {
+  const officer = await requireOfficer();
+
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return { error: "Enter a name for the page." };
+
+  const wanted = String(formData.get("slug") ?? "").trim();
+  const slug = slugify(wanted || title);
+  if (!slug) return { error: "That name does not produce a usable web address. Use letters and numbers." };
+
+  // A custom page cannot sit on a route that already exists in code — the
+  // route would win and the page would silently never appear.
+  if (RESERVED_SLUGS.has(slug)) {
+    return { error: `The address /${slug} is already used by one of the built-in pages. Choose another name.` };
+  }
+
+  const clash = await db.select({ id: pages.id }).from(pages).where(eq(pages.slug, slug)).limit(1);
+  if (clash[0]) return { error: `A page already uses the address /${slug}.` };
+
+  const last = await db.select({ n: pages.navOrder }).from(pages).orderBy(desc(pages.navOrder)).limit(1);
+
+  const [made] = await db.insert(pages).values({
+    slug,
+    kind: "custom",
+    title,
+    navLabel: title,
+    showInNav: formData.get("showInNav") === "on",
+    navOrder: (last[0]?.n ?? 0) + 10,
+    published: false,   // drafts by default: a half-written page should not appear
+  }).returning({ id: pages.id });
+
+  await audit(officer.id, "create_page", "pages", slug);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
+  return { ok: true, id: made.id, slug };
+}
+
+/**
+ * Removes a custom page. A system page is refused: its route lives in code, so
+ * deleting the row would not remove the page, it would only strip the branch's
+ * wording and drop it out of the menu — with registration or the certificate
+ * gate still answering at the same address.
+ */
+export async function deletePage(id: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") return { error: "Only a branch administrator can delete a page." };
+
+  const rows = await db.select().from(pages).where(eq(pages.id, id)).limit(1);
+  const page = rows[0];
+  if (!page) return { error: "That page no longer exists." };
+
+  if (page.kind === "system") {
+    return {
+      error: "Built-in pages cannot be deleted, because the registration form, the passcode gates and the certificate live on them. Untick 'Show in menu' to hide this page instead.",
+    };
+  }
+
+  await db.delete(pages).where(eq(pages.id, id));
+  await audit(officer.id, "delete_page", "pages", page.slug);
+
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
+  return { ok: true };
+}
+
+/** Move one page up or down the menu by swapping order with its neighbour. */
+export async function movePage(id: string, direction: "up" | "down") {
+  const officer = await requireOfficer();
+
+  const all = await db.select({ id: pages.id, navOrder: pages.navOrder })
+    .from(pages).orderBy(asc(pages.navOrder));
+
+  const i = all.findIndex((p) => p.id === id);
+  if (i < 0) return { error: "That page no longer exists." };
+
+  const j = direction === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= all.length) return { ok: true };   // already at the end
+
+  // Orders can collide after hand editing, so rewrite the whole sequence
+  // rather than swapping two values that may be equal.
+  const order = [...all];
+  [order[i], order[j]] = [order[j], order[i]];
+  for (let k = 0; k < order.length; k++) {
+    await db.update(pages).set({ navOrder: (k + 1) * 10 }).where(eq(pages.id, order[k].id));
+  }
+
+  await audit(officer.id, "reorder_pages", "pages", id, { direction });
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
   return { ok: true };
 }

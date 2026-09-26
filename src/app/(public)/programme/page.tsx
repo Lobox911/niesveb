@@ -1,22 +1,29 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
 import { getFeaturedEvent, getEventView } from "@/lib/site";
+import { getCopy, pageMeta } from "@/lib/pages";
 
-export const metadata: Metadata = { title: "Programme" };
+export const dynamic = "force-dynamic";
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMeta("programme");
+}
 
 export default async function ProgrammePage() {
-  const featured = await getFeaturedEvent();
+  const [featured, copy] = await Promise.all([getFeaturedEvent(), getCopy("programme")]);
   const event = featured ? await getEventView(featured) : null;
+
   return (
     <>
-      <PageBanner title="Programme" crumb="Programme" />
+      <PageBanner title={copy.title} crumb="Programme" />
       <div className="container-content py-14">
+        {copy.intro && (
+          <p className="max-w-prose text-[17px] leading-relaxed text-muted">{copy.intro}</p>
+        )}
+
         {!event || event.programme.length === 0 ? (
-          <p className="text-[17px] text-muted">
-            The programme is being finalised and will be published here shortly.
-          </p>
+          <p className="mt-8 text-[17px] text-muted">{copy.empty}</p>
         ) : (
-          <ul>
+          <ul className="mt-8">
             {event.programme.map((s, i) => (
               <li key={i} className={`flex gap-6 border-b border-line py-5 last:border-b-0 ${s.isBreak ? "bg-paper" : ""}`}>
                 <span className={`mono w-[96px] shrink-0 text-[15px] ${s.isBreak ? "text-muted" : "text-gold"}`}>{s.time}</span>

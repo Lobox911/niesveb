@@ -3,7 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const NAV = [
+type NavItem = { href: string; label: string };
+
+/** The menu comes from the Pages section of the dashboard. The fallback is
+ *  only reached if this component is rendered without one. */
+const FALLBACK_NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/register", label: "Register" },
   { href: "/retrieve", label: "Retrieve code" },
@@ -12,7 +16,10 @@ const NAV = [
   { href: "/programme", label: "Programme" },
 ];
 
-export default function Header({ logoUrl, branch }: { logoUrl?: string | null; branch?: string } = {}) {
+export default function Header({
+  logoUrl, branch, nav,
+}: { logoUrl?: string | null; branch?: string; nav?: NavItem[] } = {}) {
+  const NAV = nav && nav.length ? nav : FALLBACK_NAV;
   const path = usePathname();
   const [open, setOpen] = useState(false);
 
