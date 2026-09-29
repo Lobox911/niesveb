@@ -1,27 +1,28 @@
 import type { Metadata } from "next";
 import PageBanner from "@/components/PageBanner";
 import CertificateGate from "./CertificateGate";
+import { getCopy, pageMeta } from "@/lib/pages";
 
-export const metadata: Metadata = { title: "Certificate of participation" };
+export const dynamic = "force-dynamic";
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMeta("certificate");
+}
 
-export default function CertificatePage() {
+/** The eligibility states — payment unconfirmed, no attendance record, event
+ *  not yet held — are handled inside CertificateGate, which can see the
+ *  registration. This page only sets the scene. */
+export default async function CertificatePage() {
+  const copy = await getCopy("certificate");
+
   return (
     <>
-      <PageBanner title="Certificate of participation" crumb="Certificate" />
+      <PageBanner title={copy.title} crumb="Certificate" />
       <div className="container-content py-12 md:py-16">
         <section className="max-w-prose">
-          <h2 className="text-[20px] text-ink">Print your certificate</h2>
-          <p className="mt-5 text-[17px] leading-relaxed text-muted">
-            Dear participant,
-          </p>
-          <p className="mt-4 text-[17px] leading-relaxed text-muted">
-            Enter your registration code to open your e-certificate of
-            participation. Certificates become available after the seminar, once
-            your attendance has been recorded and your payment confirmed.
-          </p>
+          <p className="text-[17px] leading-relaxed text-muted">{copy.intro}</p>
+          <p className="mt-4 text-[17px] leading-relaxed text-muted">{copy.notYet}</p>
         </section>
 
-        {/* TODO: eligibility states — not yet held / unconfirmed / no attendance */}
         <div className="mt-10">
           <CertificateGate />
         </div>
