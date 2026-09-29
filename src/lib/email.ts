@@ -147,6 +147,45 @@ recorded.</p>`;
   return send(opts.to, `Payment confirmed — ${opts.eventTitle}`, wrap(branch.branchName, body));
 }
 
+/**
+ * Sent once, when attendance is first recorded.
+ *
+ * This is the last thing the portal owes a participant, and the moment they
+ * are most likely to act on it — they are still at the venue, or have just
+ * left it. Waiting for them to remember to come back to the site weeks later
+ * is how a certificate goes undownloaded.
+ *
+ * Deliberately not an attachment. A few hundred PDFs through a new sending
+ * domain is how that domain gets a spam reputation, and a link lets them
+ * download it again later without asking anyone.
+ */
+export async function sendCertificateReadyEmail(opts: {
+  to: string;
+  name: string;
+  passcode: string;
+  eventTitle: string;
+  units: number;
+  siteUrl: string;
+}) {
+  const branch = await getBranch();
+  const body = `
+<p>Dear ${opts.name},</p>
+<p>Your attendance at the <strong>${opts.eventTitle}</strong> has been recorded,
+and your certificate of participation is ready.</p>
+<p><a href="${opts.siteUrl}/certificate" style="display:inline-block;background:#0B6E4F;color:#ffffff;padding:12px 22px;border-radius:4px;text-decoration:none">Download your certificate</a></p>
+<p>You will be asked for your participation code:</p>
+<p style="font-family:ui-monospace,monospace;font-size:22px;letter-spacing:4px;margin:16px 0">${opts.passcode}</p>
+<p>The certificate carries ${opts.units} MCPD credit ${opts.units === 1 ? "unit" : "units"},
+a serial number and a QR code, so anyone can confirm it is genuine. You can
+download it again at any time.</p>`;
+
+  return send(
+    opts.to,
+    `Your certificate is ready — ${opts.eventTitle}`,
+    wrap(branch.branchName, body),
+  );
+}
+
 export async function sendRejectedEmail(opts: {
   to: string; name: string; eventTitle: string; reason: string;
 }) {

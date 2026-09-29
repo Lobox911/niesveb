@@ -11,7 +11,7 @@ import { normalisePasscode, generatePasscode } from "@/lib/passcode";
 import { dateRange, getBranch } from "@/lib/site";
 import { SYSTEM_PAGES, systemPage, slugify, RESERVED_SLUGS } from "@/lib/pages";
 import { headers } from "next/headers";
-import { sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
+import { sendCertificateReadyEmail, sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
 import { del } from "@vercel/blob";
 
 /** The address to put in emails. Prefers the branch's canonical setting and
@@ -227,15 +227,45 @@ export async function markAttendance(rawPasscode: string, method: "desk" | "qr" 
     .from(attendance)
     .where(eq(attendance.registrationId, reg.id));
 
+  const repeat = (already[0]?.n ?? 0) > 0;
+
   await db.insert(attendance).values({ registrationId: reg.id, markedBy: officer.id, method });
   await audit(officer.id, "mark_attendance", "registrations", reg.id, { method });
+
+  // Only on the first scan. A second scan at the door after lunch must not
+  // send a second email, and the desk is scanning a queue — a failure here
+  // cannot be allowed to hold up the person in front of the registrar.
+  if (!repeat && reg.passcode) {
+    const detail = await db
+      .select({
+        units: categories.units,
+        eventTitle: events.title,
+      })
+      .from(registrations)
+      .innerJoin(categories, eq(categories.id, registrations.categoryId))
+      .innerJoin(events, eq(events.id, registrations.eventId))
+      .where(eq(registrations.id, reg.id))
+      .limit(1);
+
+    if (detail[0]) {
+      void sendCertificateReadyEmail({
+        to: reg.email,
+        name: `${reg.title ?? ""} ${reg.firstName} ${reg.surname}`.trim(),
+        passcode: reg.passcode,
+        eventTitle: detail[0].eventTitle,
+        units: detail[0].units,
+        siteUrl: await publicUrl(),
+      }).catch(() => false);
+    }
+  }
+
   revalidatePath("/admin/attendance");
 
   return {
     ok: true,
     name: `${reg.title ?? ""} ${reg.firstName} ${reg.surname}`.trim(),
     passcode,
-    repeat: (already[0]?.n ?? 0) > 0,
+    repeat,
   };
 }
 
@@ -1116,4 +1146,82 @@ export async function updateCertificateSettings(formData: FormData) {
   await audit(officer.id, "update_certificate", "branch_settings", "1", { fields: Object.keys(patch) });
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Marks attendance from the participant drawer rather than the scanning desk.
+ *
+ * The desk takes a passcode because that is what it is scanning. Here the
+ * officer already has the person open in front of them, so asking them to
+ * re-type the code they can see would be silly — and the person may be
+ * standing there having lost their card.
+ */
+export async function markAttendanceById(registrationId: string) {
+  const officer = await requireOfficer();
+
+  const rows = await db.select().from(registrations).where(eq(registrations.id, registrationId)).limit(1);
+  const reg = rows[0];
+  if (!reg) return { error: "That registration no longer exists." };
+  if (reg.status !== "confirmed") {
+    return { error: "Confirm the payment first. Attendance cannot be recorded against an unconfirmed registration." };
+  }
+  if (!reg.passcode) {
+    return { error: "This registration has no participation code yet." };
+  }
+
+  return markAttendance(reg.passcode, "desk");
+}
+
+/**
+ * Sends the participation code again.
+ *
+ * The single most common support request at any event is "I never got the
+ * email". Without this the officer's only options are reading the code down a
+ * phone line or confirming the payment a second time.
+ */
+export async function resendPasscodeEmail(registrationId: string) {
+  const officer = await requireOfficer();
+
+  const rows = await db
+    .select({
+      email: registrations.email,
+      title: registrations.title,
+      firstName: registrations.firstName,
+      surname: registrations.surname,
+      passcode: registrations.passcode,
+      status: registrations.status,
+      eventTitle: events.title,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      venue: events.venue,
+    })
+    .from(registrations)
+    .innerJoin(events, eq(events.id, registrations.eventId))
+    .where(eq(registrations.id, registrationId))
+    .limit(1);
+
+  const r = rows[0];
+  if (!r) return { error: "That registration no longer exists." };
+  if (r.status !== "confirmed" || !r.passcode) {
+    return { error: "No code has been issued yet. Confirm the payment first." };
+  }
+
+  const sent = await sendConfirmedEmail({
+    to: r.email,
+    name: `${r.title ?? ""} ${r.firstName} ${r.surname}`.trim(),
+    passcode: r.passcode,
+    eventTitle: r.eventTitle,
+    eventDate: dateRange(r.startsAt, r.endsAt),
+    venue: r.venue,
+    siteUrl: await publicUrl(),
+  }).catch(() => false);
+
+  await audit(officer.id, "resend_passcode", "registrations", registrationId);
+
+  // Honest about the outcome. Telling an officer it was sent when email is
+  // not configured sends them back to the participant with wrong information.
+  if (!sent) {
+    return { error: "The email could not be sent. Check that email is configured, and read the code out instead." };
+  }
+  return { ok: true, email: r.email };
 }

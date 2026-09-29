@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { db, registrations, categories, attendance } from "@/db";
+import { db, registrations, categories, attendance, certificates } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import RegistrationsTable from "./RegistrationsTable";
 import ReadinessPanel from "./ReadinessPanel";
@@ -72,6 +72,20 @@ export default async function AdminDashboard({
         status: registrations.status,
         rejectionReason: registrations.rejectionReason,
         createdAt: registrations.createdAt,
+        // Subqueries rather than joins: attendance is append-only, and a join
+        // would return one table row per scan for the same person.
+        scans: sql<number>`(
+          select count(*)::int from ${attendance}
+          where ${attendance.registrationId} = ${registrations.id}
+        )`,
+        firstSeen: sql<Date | null>`(
+          select min(${attendance.markedAt}) from ${attendance}
+          where ${attendance.registrationId} = ${registrations.id}
+        )`,
+        certificateSerial: sql<string | null>`(
+          select ${certificates.serial} from ${certificates}
+          where ${certificates.registrationId} = ${registrations.id} limit 1
+        )`,
       })
       .from(registrations)
       .where(where)
@@ -111,7 +125,13 @@ export default async function AdminDashboard({
       </dl>
 
       <RegistrationsTable
-        rows={rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), amount: naira(r.amountKobo) }))}
+        rows={rows.map((r) => ({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+          firstSeen: r.firstSeen ? new Date(r.firstSeen).toISOString() : null,
+          amount: naira(r.amountKobo),
+          categoryName: cats.find((c) => c.id === r.categoryId)?.name ?? "",
+        }))}
         categories={cats.map((x) => ({ id: x.id, name: x.name }))}
         total={total[0]?.n ?? 0}
         page={pageNo}

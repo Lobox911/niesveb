@@ -1,13 +1,15 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { confirmManyPayments, confirmPayment, rejectPayment } from "./actions";
+import { confirmManyPayments, confirmPayment, markAttendanceById, rejectPayment, resendPasscodeEmail } from "./actions";
 
 type Row = {
   id: string; passcode: string | null; title: string | null; surname: string; firstName: string;
   membershipNo: string | null; email: string; phone: string; firm: string | null;
   categoryId: string; mode: string; amount: string; txnRef: string | null;
   proofUrl: string | null; status: string; rejectionReason: string | null; createdAt: string;
+  categoryName: string;
+  scans: number; firstSeen: string | null; certificateSerial: string | null;
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -209,7 +211,7 @@ export default function RegistrationsTable({
                 <td className="whitespace-nowrap px-4 py-3 text-[15px] font-medium text-ink">
                   {[r.title, r.firstName, r.surname].filter(Boolean).join(" ")}
                 </td>
-                <td className="px-4 py-3 text-[14px] text-muted">{r.categoryId}</td>
+                <td className="px-4 py-3 text-[14px] text-muted">{r.categoryName}</td>
                 <td className="px-4 py-3 text-[14px] capitalize text-muted">{r.mode}</td>
                 <td className="mono whitespace-nowrap px-4 py-3 text-right text-[14px] text-ink">{r.amount}</td>
                 <td className="mono px-4 py-3 text-[13px] text-muted">{r.txnRef || "—"}</td>
@@ -249,6 +251,7 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [issued, setIssued] = useState<string | null>(null);
 
   if (issued) {
@@ -320,6 +323,31 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
             )}
           </div>
 
+          <h3 className="mono mt-8 text-[12px] uppercase tracking-wider text-muted">Progress</h3>
+          {/* The whole journey on one line. Previously an officer had to open
+              the dashboard to see payment, the attendance page to see whether
+              the person had arrived, and had no way at all to see whether a
+              certificate had been issued. */}
+          <ol className="mt-3 grid grid-cols-4 gap-2">
+            {[
+              { label: "Registered", done: true, note: new Date(row.createdAt).toLocaleDateString("en-NG", { day: "2-digit", month: "short" }) },
+              { label: "Paid", done: row.status === "confirmed", note: row.status === "rejected" ? "Rejected" : row.status === "confirmed" ? "Confirmed" : "Awaiting" },
+              { label: "Attended", done: row.scans > 0, note: row.scans > 0 ? (row.firstSeen ? new Date(row.firstSeen).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", hour12: false }) : "Yes") : "Not yet" },
+              { label: "Certificate", done: !!row.certificateSerial, note: row.certificateSerial ? "Issued" : "Not issued" },
+            ].map((step) => (
+              <li key={step.label} className={`rounded border-t-2 bg-paper px-3 py-2.5 ${step.done ? "border-t-green" : "border-t-line"}`}>
+                <p className={`text-[13px] ${step.done ? "text-ink" : "text-muted"}`}>{step.label}</p>
+                <p className="mono mt-0.5 text-[12px] text-muted">{step.note}</p>
+              </li>
+            ))}
+          </ol>
+
+          {row.certificateSerial && (
+            <p className="help mt-2">
+              Serial <span className="mono text-ink">{row.certificateSerial}</span>
+            </p>
+          )}
+
           <h3 className="mono mt-8 text-[12px] uppercase tracking-wider text-muted">Proof of payment</h3>
           {row.proofUrl ? (
             <a href={row.proofUrl} target="_blank" rel="noreferrer" className="mt-3 block">
@@ -340,6 +368,58 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
             </div>
           )}
         </div>
+
+        {/* Everything an officer might need to do for this person, here,
+            rather than on three different screens. */}
+        {row.status === "confirmed" && (
+          <div className="border-t border-line px-6 py-5">
+            <h3 className="mono text-[12px] uppercase tracking-wider text-muted">On the day</h3>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button
+                type="button" disabled={pending}
+                className="btn-secondary px-4 disabled:opacity-50"
+                onClick={() => start(async () => {
+                  const res = await markAttendanceById(row.id);
+                  // Narrow on the success key: the failure shape has only
+                  // `error`, so checking for `error` does not narrow it.
+                  if (!("ok" in res)) {
+                    setError(res.error);
+                    setNote(null);
+                    return;
+                  }
+                  setError(null);
+                  setNote(
+                    res.repeat
+                      ? `${res.name} was already marked present. The second scan has been recorded too.`
+                      : `${res.name} marked present.`,
+                  );
+                })}
+              >
+                {row.scans > 0 ? "Mark present again" : "Mark present"}
+              </button>
+
+              <button
+                type="button" disabled={pending}
+                className="btn-secondary px-4 disabled:opacity-50"
+                onClick={() => start(async () => {
+                  const res = await resendPasscodeEmail(row.id);
+                  // Narrow on the success key: the failure shape has only
+                  // `error`, so checking for `error` does not narrow it.
+                  if (!("ok" in res)) {
+                    setError(res.error);
+                    setNote(null);
+                    return;
+                  }
+                  setError(null);
+                  setNote(`Code resent to ${res.email}.`);
+                })}
+              >
+                Resend their code
+              </button>
+            </div>
+            {note && <p role="status" className="mt-3 text-[14px] text-green">{note}</p>}
+          </div>
+        )}
 
         <div className="sticky bottom-0 border-t border-line bg-white p-6">
           {error && <p role="alert" className="mb-3 text-[14px] text-danger">{error}</p>}
