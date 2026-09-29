@@ -1056,3 +1056,47 @@ export async function movePage(id: string, direction: "up" | "down") {
   revalidatePath("/admin/pages");
   return { ok: true };
 }
+
+/** Signatories, wording and artwork for the certificate. */
+export async function updateCertificateSettings(formData: FormData) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") {
+    return { error: "Only a branch administrator can change certificate settings." };
+  }
+
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+
+  const patch: Record<string, unknown> = {
+    chairmanName: text("chairmanName") || null,
+    chairmanTitle: text("chairmanTitle") || "Chairman",
+    secretaryName: text("secretaryName") || null,
+    secretaryTitle: text("secretaryTitle") || "Secretary",
+    certificateStatement: text("certificateStatement") || null,
+    updatedAt: new Date(),
+  };
+
+  // The prefix goes into a serial that is printed and cannot be corrected
+  // afterwards, so anything that would produce a malformed serial is refused
+  // rather than silently stripped.
+  const prefixRaw = text("certificateSerialPrefix");
+  if (prefixRaw) {
+    if (!/^[A-Za-z0-9-]{2,20}$/.test(prefixRaw)) {
+      return { error: "The serial prefix can use letters, numbers and hyphens only, up to 20 characters." };
+    }
+    patch.certificateSerialPrefix = prefixRaw.toUpperCase();
+  }
+
+  const chairSig = blobUrl(formData, "chairmanSignatureUrl");
+  if (chairSig) { patch.chairmanSignatureUrl = chairSig; patch.chairmanSignaturePath = blobPath(chairSig); }
+
+  const secSig = blobUrl(formData, "secretarySignatureUrl");
+  if (secSig) { patch.secretarySignatureUrl = secSig; patch.secretarySignaturePath = blobPath(secSig); }
+
+  const bg = blobUrl(formData, "certificateBackgroundUrl");
+  if (bg) { patch.certificateBackgroundUrl = bg; patch.certificateBackgroundPath = blobPath(bg); }
+
+  await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
+  await audit(officer.id, "update_certificate", "branch_settings", "1", { fields: Object.keys(patch) });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

@@ -83,6 +83,34 @@ export const branchSettings = pgTable("branch_settings", {
   primaryColor: text("primary_color").notNull().default("#0B6E4F"),
   accentColor: text("accent_color").notNull().default("#B08A2E"),
 
+  /* ---- certificate ----
+     Who signs, and what the certificate looks like. Signatures are optional:
+     without them the certificate still prints with the names and ruled lines,
+     which is what lets the branch go live before the chairman has sent a
+     scan. */
+  chairmanName: text("chairman_name"),
+  chairmanTitle: text("chairman_title").default("Chairman"),
+  chairmanSignatureUrl: text("chairman_signature_url"),
+  chairmanSignaturePath: text("chairman_signature_path"),
+
+  secretaryName: text("secretary_name"),
+  secretaryTitle: text("secretary_title").default("Secretary"),
+  secretarySignatureUrl: text("secretary_signature_url"),
+  secretarySignaturePath: text("secretary_signature_path"),
+
+  /* Artwork from the branch's printer. When set, the generated text is drawn
+     on top of it and the code draws no frame of its own. */
+  certificateBackgroundUrl: text("certificate_background_url"),
+  certificateBackgroundPath: text("certificate_background_path"),
+
+  /* Prefixes the serial, e.g. NIESV-EB. Serials are permanent — they are
+     printed on certificates already in circulation — so changing this only
+     affects ones issued afterwards. */
+  certificateSerialPrefix: text("certificate_serial_prefix").default("NIESV-EB"),
+
+  /* The line above the signatures. Blank uses the shipped wording. */
+  certificateStatement: text("certificate_statement"),
+
   /* One account for every event, per the branch. */
   bankName: text("bank_name"),
   accountName: text("account_name"),

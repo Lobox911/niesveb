@@ -8,6 +8,7 @@ import HeroBackground from "../event/HeroBackground";
 import HeroSlides from "./HeroSlides";
 import BannerUpload from "./BannerUpload";
 import Branding from "./Branding";
+import CertificateSettings from "./CertificateSettings";
 import TabbedSections from "../TabbedSections";
 import { asc } from "drizzle-orm";
 import { heroSlides } from "@/db";
@@ -45,6 +46,7 @@ export default async function SitePage() {
           { id: "slides", label: "Hero slides" },
           { id: "banner", label: "Page banner" },
           { id: "branding", label: "Branding and search" },
+          { id: "certificate", label: "Certificate" },
         ]}
       >
       <div>
@@ -131,6 +133,20 @@ export default async function SitePage() {
           searchIndexable={s?.searchIndexable ?? true}
           googleVerification={s?.googleVerification ?? ""}
           analyticsId={s?.analyticsId ?? ""}
+        />
+      </div>
+
+      <div>
+        <CertificateSettings
+          chairmanName={s?.chairmanName ?? ""}
+          chairmanTitle={s?.chairmanTitle ?? "Chairman"}
+          chairmanSignatureUrl={s?.chairmanSignatureUrl ?? null}
+          secretaryName={s?.secretaryName ?? ""}
+          secretaryTitle={s?.secretaryTitle ?? "Secretary"}
+          secretarySignatureUrl={s?.secretarySignatureUrl ?? null}
+          certificateBackgroundUrl={s?.certificateBackgroundUrl ?? null}
+          certificateSerialPrefix={s?.certificateSerialPrefix ?? "NIESV-EB"}
+          certificateStatement={s?.certificateStatement ?? ""}
         />
       </div>
       </TabbedSections>
