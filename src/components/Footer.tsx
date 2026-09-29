@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { currentYear } from "@/lib/event";
 import { getBranch, getFeaturedEvent, getEventView } from "@/lib/site";
 
 /**
@@ -8,6 +7,7 @@ import { getBranch, getFeaturedEvent, getEventView } from "@/lib/site";
  * Headings are <h3>; every column reads from the database via getSiteData.
  */
 export default async function Footer() {
+  const currentYear = new Date().getFullYear();
   const branch = await getBranch();
   const featured = await getFeaturedEvent();
   const event = featured ? await getEventView(featured) : null;
