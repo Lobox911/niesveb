@@ -141,12 +141,29 @@ export async function confirmManyPayments(ids: string[]) {
 
   // Sequential rather than parallel: each one may need a passcode, and two
   // concurrent draws could collide on the uniqueness check.
+  let done = 0;
+  const failed: string[] = [];
   for (const id of ids) {
-    await confirmPayment(id);
+    const res = await confirmPayment(id);
+    if (res?.ok) done++; else failed.push(id);
   }
-  await audit(officer.id, "bulk_confirm_payment", "registrations", ids.join(","), { count: ids.length });
+
+  await audit(officer.id, "bulk_confirm_payment", "registrations", ids.join(","), {
+    requested: ids.length, confirmed: done,
+  });
   revalidatePath("/admin");
-  return { ok: true, count: ids.length };
+
+  // Reporting the number actually confirmed rather than the number clicked:
+  // "confirmed 40" when four silently failed is the kind of thing nobody
+  // notices until a participant turns up without a code.
+  if (failed.length) {
+    return {
+      ok: true,
+      count: done,
+      error: `${done} confirmed, ${failed.length} could not be. Open those rows individually to see why.`,
+    };
+  }
+  return { ok: true, count: done };
 }
 
 export async function rejectPayment(id: string, reason: string) {

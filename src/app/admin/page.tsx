@@ -3,6 +3,8 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db, registrations, categories, attendance } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import RegistrationsTable from "./RegistrationsTable";
+import ReadinessPanel from "./ReadinessPanel";
+import { getReadiness } from "@/lib/readiness";
 
 export const metadata: Metadata = { title: "Admin dashboard" };
 
@@ -40,7 +42,8 @@ export default async function AdminDashboard({
   }
   const where = filters.length ? and(...filters) : undefined;
 
-  const [counts, attendanceCount, cats, rows, total] = await Promise.all([
+  const [readiness, counts, attendanceCount, cats, rows, total] = await Promise.all([
+    getReadiness(),
     db
       .select({
         total: sql<number>`count(*)::int`,
@@ -90,6 +93,8 @@ export default async function AdminDashboard({
     <div className="p-6 lg:p-10">
       <h1 className="text-[26px] text-ink">Admin dashboard</h1>
       <p className="mt-1 text-[15px] text-muted">Registrations and payment confirmation.</p>
+
+      <ReadinessPanel readiness={readiness} />
 
       <dl className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (

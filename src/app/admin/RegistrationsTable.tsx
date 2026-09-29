@@ -1,7 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { confirmPayment, rejectPayment } from "./actions";
+import { confirmManyPayments, confirmPayment, rejectPayment } from "./actions";
 
 type Row = {
   id: string; passcode: string | null; title: string | null; surname: string; firstName: string;
@@ -27,6 +27,23 @@ export default function RegistrationsTable({
   const router = useRouter();
   const params = useSearchParams();
   const [open, setOpen] = useState<Row | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkPending, startBulk] = useTransition();
+  const [bulkNote, setBulkNote] = useState<string | null>(null);
+
+  // Only pending rows can be confirmed, so the header checkbox and the count
+  // both work from that set rather than from everything on screen.
+  const selectable = rows.filter((r) => r.status === "pending");
+  const chosen = selectable.filter((r) => picked.has(r.id));
+  const allChosen = selectable.length > 0 && chosen.length === selectable.length;
+
+  const toggle = (id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
@@ -79,11 +96,82 @@ export default function RegistrationsTable({
         </div>
       </div>
 
+      {/* Export reflects the filters above it, so "confirmed only" or one
+          category is one click rather than a spreadsheet edit afterwards. */}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <a
+          className="btn-secondary"
+          href={`/api/export/registrations?${new URLSearchParams(
+            Object.fromEntries(Object.entries(query).filter(([, v]) => v)) as Record<string, string>,
+          ).toString()}`}
+        >
+          Export these to CSV
+        </a>
+        <a className="btn-secondary" href="/api/export/registrations?attended=1">
+          Export attendance list
+        </a>
+      </div>
+
+      {chosen.length > 0 && (
+        <div
+          role="status"
+          className="sticky top-2 z-20 mt-5 flex flex-wrap items-center justify-between gap-4 rounded border border-green bg-white p-4 shadow-none"
+        >
+          <p className="text-[15px] text-ink">
+            {chosen.length} {chosen.length === 1 ? "registration" : "registrations"} selected
+            <span className="help mt-0.5 block">
+              Confirming issues each participation code and emails it. There is
+              no undo.
+            </span>
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="btn-secondary px-4" onClick={() => setPicked(new Set())}>
+              Clear
+            </button>
+            <button
+              type="button"
+              disabled={bulkPending}
+              className="btn-primary px-5 disabled:opacity-60"
+              onClick={() => startBulk(async () => {
+                const ids = chosen.map((r) => r.id);
+                const res = await confirmManyPayments(ids);
+                setPicked(new Set());
+                setBulkNote(
+                  res?.error
+                    ? res.error
+                    : `Confirmed ${res?.count ?? ids.length}. Codes have been issued and emailed.`,
+                );
+                setTimeout(() => setBulkNote(null), 6000);
+              })}
+            >
+              {bulkPending ? "Confirming" : `Confirm ${chosen.length}`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bulkNote && (
+        <p role="status" className="mt-4 rounded border border-line bg-paper p-4 text-[15px] text-ink">
+          {bulkNote}
+        </p>
+      )}
+
       <div className="card mt-5 overflow-x-auto">
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">Registrations, newest first</caption>
           <thead>
             <tr className="border-b border-line">
+              <th scope="col" className="w-10 px-4 py-3">
+                <input
+                  type="checkbox"
+                  aria-label="Select all awaiting confirmation on this page"
+                  disabled={selectable.length === 0}
+                  checked={allChosen}
+                  onChange={() =>
+                    setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
+                  }
+                />
+              </th>
               {["Passcode", "Name", "Category", "Mode", "Amount", "Reference", "Status", "Registered"].map((h) => (
                 <th key={h} scope="col" className="mono whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
                   {h}
@@ -93,7 +181,7 @@ export default function RegistrationsTable({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-[15px] text-muted">
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-[15px] text-muted">
                 No registrations match these filters.
               </td></tr>
             )}
@@ -105,6 +193,16 @@ export default function RegistrationsTable({
                 onKeyDown={(e) => { if (e.key === "Enter") setOpen(r); }}
                 className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper focus:bg-paper"
               >
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  {r.status === "pending" && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${r.firstName} ${r.surname}`}
+                      checked={picked.has(r.id)}
+                      onChange={() => toggle(r.id)}
+                    />
+                  )}
+                </td>
                 <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">
                   {r.passcode ?? <span className="text-muted">Not issued</span>}
                 </th>
