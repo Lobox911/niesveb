@@ -8,7 +8,7 @@ import HeroBackground from "../event/HeroBackground";
 import HeroSlides from "./HeroSlides";
 import BannerUpload from "./BannerUpload";
 import Branding from "./Branding";
-import SectionNav from "../SectionNav";
+import TabbedSections from "../TabbedSections";
 import { asc } from "drizzle-orm";
 import { heroSlides } from "@/db";
 
@@ -36,7 +36,8 @@ export default async function SitePage() {
         to every event.
       </p>
 
-      <SectionNav
+      <TabbedSections
+        storageKey="admin-site-tab"
         items={[
           { id: "branch", label: "Branch" },
           { id: "crest", label: "Crest" },
@@ -45,9 +46,8 @@ export default async function SitePage() {
           { id: "banner", label: "Page banner" },
           { id: "branding", label: "Branding and search" },
         ]}
-      />
-
-      <div id="branch" className="scroll-mt-24">
+      >
+      <div>
       <SettingsForm
         submitLabel="Save site settings"
         initial={{
@@ -96,11 +96,11 @@ export default async function SitePage() {
 
       </div>
 
-      <div id="crest" className="scroll-mt-24">
+      <div>
         <LogoUpload current={s?.logoUrl ?? null} />
       </div>
 
-      <div id="hero" className="scroll-mt-24">
+      <div>
         <HeroBackground
           current={s?.heroImageUrl ?? null}
           alt={s?.heroImageAlt ?? null}
@@ -108,18 +108,18 @@ export default async function SitePage() {
         />
       </div>
 
-      <div id="slides" className="scroll-mt-24">
+      <div>
         <HeroSlides rows={slides} />
       </div>
 
-      <div id="banner" className="scroll-mt-24">
+      <div>
         <BannerUpload
           current={s?.bannerImageUrl ?? null}
           alt={s?.bannerImageAlt ?? null}
         />
       </div>
 
-      <div id="branding" className="scroll-mt-24">
+      <div>
         <Branding
           metaTitle={s?.metaTitle ?? ""}
           metaDescription={s?.metaDescription ?? ""}
@@ -133,6 +133,7 @@ export default async function SitePage() {
           analyticsId={s?.analyticsId ?? ""}
         />
       </div>
+      </TabbedSections>
     </div>
   );
 }
