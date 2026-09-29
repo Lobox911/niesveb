@@ -1,5 +1,5 @@
 "use client";
-import { Children, useState } from "react";
+import { Children, useEffect, useState } from "react";
 
 /**
  * One section on screen at a time.
@@ -29,24 +29,33 @@ export default function TabbedSections({
 }) {
   const panels = Children.toArray(children);
 
-  const [active, setActive] = useState(() => {
-    if (typeof window === "undefined") return items[0]?.id;
+  /**
+   * Always the first tab on the first render.
+   *
+   * Reading the hash or sessionStorage in the initialiser looks tidier but
+   * runs on the server too, where neither exists — so the server would render
+   * one tab active and the browser another, and React reconciles that
+   * mismatch by leaving both marked selected. The remembered tab is applied
+   * after mount instead, where the browser is the only one rendering.
+   */
+  const [active, setActive] = useState(items[0]?.id);
 
-    // A save revalidates and re-renders; without this the branch is dropped
-    // back on the first tab every time they save something on the sixth.
+  useEffect(() => {
     const fromHash = window.location.hash.replace("#", "");
-    if (fromHash && items.some((i) => i.id === fromHash)) return fromHash;
-
-    if (storageKey) {
-      try {
-        const saved = sessionStorage.getItem(storageKey);
-        if (saved && items.some((i) => i.id === saved)) return saved;
-      } catch {
-        // Private browsing, or storage disabled. The first tab is fine.
-      }
+    if (fromHash && items.some((i) => i.id === fromHash)) {
+      setActive(fromHash);
+      return;
     }
-    return items[0]?.id;
-  });
+    if (!storageKey) return;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved && items.some((i) => i.id === saved)) setActive(saved);
+    } catch {
+      // Private browsing, or storage disabled. The first tab is fine.
+    }
+    // Runs once: re-reading on every change would fight the user's clicks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const choose = (id: string) => {
     setActive(id);
