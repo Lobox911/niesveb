@@ -72,9 +72,12 @@ export default function TabbedSections({
       <div
         role="tablist"
         aria-label="Settings sections"
-        className="sticky top-0 z-30 -mx-6 mb-8 overflow-x-auto border-b border-line bg-paper/95 px-6 backdrop-blur lg:-mx-10 lg:px-10"
+        /* The tab strip scrolls sideways when it does not fit. Without the
+           right padding the last tab sits flush against the screen edge and
+           looks truncated rather than scrollable. */
+        className="sticky top-[57px] z-30 -mx-6 mb-8 overflow-x-auto border-b border-line bg-paper/95 px-6 backdrop-blur [scrollbar-width:none] lg:top-0 lg:-mx-10 lg:px-10"
       >
-        <div className="flex gap-1">
+        <div className="flex gap-1 pr-6 lg:pr-0">
           {items.map((it) => {
             const on = it.id === active;
             return (
@@ -86,7 +89,7 @@ export default function TabbedSections({
                 aria-selected={on}
                 aria-controls={`panel-${it.id}`}
                 onClick={() => choose(it.id)}
-                className={`whitespace-nowrap border-b-2 px-4 py-3 text-[15px] transition-colors ${
+                className={`min-h-[48px] whitespace-nowrap border-b-2 px-4 text-[15px] transition-colors ${
                   on
                     ? "border-green font-semibold text-ink"
                     : "border-transparent text-muted hover:text-ink"

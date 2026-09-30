@@ -102,14 +102,14 @@ export default function RegistrationsTable({
           category is one click rather than a spreadsheet edit afterwards. */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <a
-          className="btn-secondary"
+          className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none"
           href={`/api/export/registrations?${new URLSearchParams(
             Object.fromEntries(Object.entries(query).filter(([, v]) => v)) as Record<string, string>,
           ).toString()}`}
         >
           Export these to CSV
         </a>
-        <a className="btn-secondary" href="/api/export/registrations?attended=1">
+        <a className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none" href="/api/export/registrations?attended=1">
           Export attendance list
         </a>
       </div>
@@ -158,7 +158,43 @@ export default function RegistrationsTable({
         </p>
       )}
 
-      <div className="card mt-5 overflow-x-auto">
+      {/* Phones get cards, not a table.
+          Horizontally scrolling a nine-column table pushed the participant's
+          name — the only column anyone is actually looking for — off the left
+          edge, leaving a view of "…ICE / STATUS / REGISTERED". */}
+      <ul className="mt-5 space-y-3 lg:hidden">
+        {rows.length === 0 && (
+          <li className="card p-8 text-center text-[15px] text-muted">
+            No registrations match these filters.
+          </li>
+        )}
+        {rows.map((r) => (
+          <li key={r.id}>
+            <button
+              type="button"
+              onClick={() => setOpen(r)}
+              className="card flex w-full items-start justify-between gap-3 p-4 text-left active:bg-paper"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px] font-medium text-ink">
+                  {[r.title, r.firstName, r.surname].filter(Boolean).join(" ")}
+                </span>
+                <span className="mono mt-1 block text-[13px] text-muted">
+                  {r.passcode ?? "No code yet"} · {r.categoryName}
+                </span>
+                <span className="mt-1 block text-[13px] text-muted">
+                  {r.amount} · {r.mode} · {new Date(r.createdAt).toLocaleDateString("en-NG", { day: "2-digit", month: "short" })}
+                </span>
+              </span>
+              <span className={`mono shrink-0 rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${STATUS_TONE[r.status]}`}>
+                {r.status}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="card mt-5 hidden overflow-x-auto lg:block">
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">Registrations, newest first</caption>
           <thead>
@@ -228,16 +264,17 @@ export default function RegistrationsTable({
           </tbody>
         </table>
 
-        <div className="flex items-center justify-between gap-4 border-t border-line px-4 py-3">
-          <p className="mono text-[13px] text-muted">
-            {total === 0 ? "0" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
-          </p>
-          <div className="flex gap-2">
-            <button type="button" disabled={page <= 1} className="btn-secondary px-3 disabled:opacity-40"
-              onClick={() => setParam("page", String(page - 1))}>Previous</button>
-            <button type="button" disabled={page >= pages} className="btn-secondary px-3 disabled:opacity-40"
-              onClick={() => setParam("page", String(page + 1))}>Next</button>
-          </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <p className="mono text-[13px] text-muted">
+          {total === 0 ? "0" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
+        </p>
+        <div className="flex gap-2">
+          <button type="button" disabled={page <= 1} className="btn-secondary min-h-[44px] px-4 disabled:opacity-40"
+            onClick={() => setParam("page", String(page - 1))}>Previous</button>
+          <button type="button" disabled={page >= pages} className="btn-secondary min-h-[44px] px-4 disabled:opacity-40"
+            onClick={() => setParam("page", String(page + 1))}>Next</button>
         </div>
       </div>
 
@@ -258,7 +295,7 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
     return (
       <div className="fixed inset-0 z-50 flex justify-end">
         <div className="flex-1 bg-ink/40" onClick={onClose} aria-hidden />
-        <div role="dialog" aria-label="Payment confirmed" className="w-full max-w-[560px] border-l border-line bg-white p-6">
+        <div role="dialog" aria-label="Payment confirmed" className="w-full border-line bg-white p-6 sm:max-w-[560px] sm:border-l">
           <p className="mono inline-flex rounded border border-green/40 bg-green/10 px-3 py-1.5 text-[12px] uppercase tracking-wider text-green">
             Payment confirmed
           </p>
@@ -280,7 +317,7 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="flex-1 bg-ink/40" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-label="Registration details" className="w-full max-w-[560px] overflow-y-auto border-l border-line bg-white">
+      <div role="dialog" aria-label="Registration details" className="w-full overflow-y-auto border-line bg-white sm:max-w-[560px] sm:border-l">
         <div className="flex items-start justify-between gap-4 border-b border-line p-6">
           <div>
             <h2 className="text-[20px] text-ink">Registration details</h2>

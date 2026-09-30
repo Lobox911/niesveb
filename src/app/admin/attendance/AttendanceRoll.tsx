@@ -91,7 +91,7 @@ export default function AttendanceRoll({
     <section className="mt-12">
       <h2 className="text-[20px] text-ink">Attendance roll</h2>
 
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {[
           { label: "Expected", value: expected, tone: "ink" },
           { label: "Present", value: present, tone: "green" },
@@ -105,7 +105,7 @@ export default function AttendanceRoll({
             }`}
           >
             <dt className="mono text-[12px] uppercase tracking-wider text-muted">{s.label}</dt>
-            <dd className="mono mt-2 text-[34px] text-ink">{s.value}</dd>
+            <dd className="mono mt-2 text-[26px] text-ink sm:text-[34px]">{s.value}</dd>
           </div>
         ))}
       </dl>
@@ -126,7 +126,7 @@ export default function AttendanceRoll({
           />
         </div>
 
-        <div role="group" aria-label="Filter the roll" className="flex rounded border border-line bg-white">
+        <div role="group" aria-label="Filter the roll" className="flex w-full rounded border border-line bg-white sm:w-auto">
           {([
             ["all", `All ${rows.length}`],
             ["present", `Present ${present}`],
@@ -137,7 +137,7 @@ export default function AttendanceRoll({
               type="button"
               aria-pressed={view === v}
               onClick={() => setView(v)}
-              className={`px-4 py-2.5 text-[14px] ${
+              className={`min-h-[44px] flex-1 px-3 text-[14px] sm:flex-none sm:px-4 ${
                 view === v ? "bg-ink text-white" : "text-muted hover:text-ink"
               }`}
             >
@@ -163,7 +163,72 @@ export default function AttendanceRoll({
         the QR code on a participant card.
       </p>
 
-      <div className="card mt-3 overflow-x-auto">
+      {/* The roll is used standing up, on a phone, at a desk. Cards with a
+          big tap target beat a five-column table that scrolls sideways. */}
+      <ul className="mt-3 space-y-2 lg:hidden">
+        {shown.length === 0 && (
+          <li className="card p-8 text-center text-[15px] text-muted">
+            {rows.length === 0
+              ? "No confirmed registrations yet. Confirm payments and codes will be issued."
+              : "Nobody matches that."}
+          </li>
+        )}
+        {shown.map((r) => {
+          const asking = confirming === r.id;
+          return (
+            <li key={r.id} className={`card p-4 ${asking ? "border-green bg-green/5" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[16px] font-medium text-ink">{r.name}</p>
+                  <p className="mono mt-1 text-[13px] text-muted">
+                    {r.passcode}{r.membershipNo ? ` · ${r.membershipNo}` : ""}
+                  </p>
+                  <p className="mt-1 text-[13px] text-muted">
+                    {r.category} · {r.mode}
+                  </p>
+                </div>
+                {r.scans > 0 && !asking && (
+                  <span className="shrink-0 text-right">
+                    <span className="mono block text-[14px] text-green">{time(r.firstSeen)}</span>
+                    {r.scans > 1 && (
+                      <span className="mono block text-[12px] text-gold">{r.scans} scans</span>
+                    )}
+                  </span>
+                )}
+              </div>
+
+              {asking ? (
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button" disabled={pending}
+                    className="btn-primary min-h-[48px] flex-1 disabled:opacity-60"
+                    onClick={() => mark(r.id)}
+                  >
+                    {pending ? "Marking" : r.scans > 0 ? "Mark again" : "Confirm present"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary min-h-[48px] px-5"
+                    onClick={() => setConfirming(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-secondary mt-4 min-h-[48px] w-full"
+                  onClick={() => { setConfirming(r.id); setError(null); }}
+                >
+                  {r.scans > 0 ? "Mark present again" : "Mark present"}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="card mt-3 hidden overflow-x-auto lg:block">
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">Confirmed participants and their attendance</caption>
           <thead>
@@ -245,10 +310,10 @@ export default function AttendanceRoll({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
-        <a className="btn-secondary" href="/api/export/registrations?attended=1">
+        <a className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none" href="/api/export/registrations?attended=1">
           Export those present
         </a>
-        <a className="btn-secondary" href="/api/export/registrations?status=confirmed">
+        <a className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none" href="/api/export/registrations?status=confirmed">
           Export the full roll
         </a>
       </div>

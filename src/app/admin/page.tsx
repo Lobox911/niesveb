@@ -110,16 +110,16 @@ export default async function AdminDashboard({
 
       <ReadinessPanel readiness={readiness} />
 
-      <dl className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <dl className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {stats.map((s) => (
           <div
             key={s.label}
-            className={`card border-l-2 p-5 ${
+            className={`card border-l-2 p-4 sm:p-5 ${
               s.tone === "green" ? "border-l-green" : s.tone === "gold" ? "border-l-gold" : "border-l-ink"
             }`}
           >
             <dt className="mono text-[12px] uppercase tracking-wider text-muted">{s.label}</dt>
-            <dd className="mono mt-2 text-[34px] text-ink">{s.value.toLocaleString("en-NG")}</dd>
+            <dd className="mono mt-2 text-[26px] text-ink sm:text-[34px]">{s.value.toLocaleString("en-NG")}</dd>
           </div>
         ))}
       </dl>

@@ -24,37 +24,37 @@ export default function OfficerList({ rows, currentId }: { rows: Row[]; currentI
       <ul>
         {rows.map((r) => (
           <li key={r.id} className="card mb-3 p-5">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="sm:flex sm:items-start sm:gap-4">
               <div className="min-w-0 flex-1">
-                <p className="text-[17px] font-semibold text-ink">
-                  {r.name}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <p className="text-[17px] font-semibold text-ink">{r.name}</p>
                   {r.id === currentId && (
-                    <span className="mono ml-3 text-[12px] uppercase tracking-wider text-muted">you</span>
+                    <span className="mono text-[12px] uppercase tracking-wider text-muted">you</span>
                   )}
-                </p>
-                <p className="mono text-[13px] text-muted">{r.email}</p>
+                  <span className={`mono rounded border px-2 py-0.5 text-[11px] uppercase tracking-wider ${
+                    r.active ? "border-green/40 bg-green/10 text-green" : "border-line bg-paper text-muted"
+                  }`}>
+                    {r.active ? r.role : "inactive"}
+                  </span>
+                </div>
+                {/* break-all: a long address used to run under the role chip */}
+                <p className="mono mt-1 break-all text-[13px] text-muted">{r.email}</p>
               </div>
 
-              <span className={`mono rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${
-                r.active ? "border-green/40 bg-green/10 text-green" : "border-line bg-paper text-muted"
-              }`}>
-                {r.active ? r.role : "inactive"}
-              </span>
-
-              <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-secondary px-3"
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-0 sm:flex sm:shrink-0 sm:flex-wrap">
+                <button type="button" className="btn-secondary min-h-[44px] px-3"
                   onClick={() => { setResetting(resetting === r.id ? null : r.id); setMsg(null); }}>
                   Reset password
                 </button>
 
                 {r.id !== currentId && (
                   <>
-                    <button type="button" disabled={pending} className="btn-secondary px-3 disabled:opacity-40"
+                    <button type="button" disabled={pending} className="btn-secondary min-h-[44px] px-3 disabled:opacity-40"
                       onClick={() => run(() => setOfficerRole(r.id, r.role === "admin" ? "officer" : "admin"))}>
                       Make {r.role === "admin" ? "officer" : "admin"}
                     </button>
                     <button type="button" disabled={pending}
-                      className={`btn-secondary px-3 disabled:opacity-40 ${r.active ? "border-danger text-danger" : ""}`}
+                      className={`btn-secondary min-h-[44px] px-3 disabled:opacity-40 ${r.active ? "border-danger text-danger" : ""}`}
                       onClick={() => run(() => setOfficerActive(r.id, !r.active))}>
                       {r.active ? "Deactivate" : "Reactivate"}
                     </button>

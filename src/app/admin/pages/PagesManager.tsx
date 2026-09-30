@@ -43,12 +43,50 @@ export default function PagesManager({
       )}
 
       <div className="mt-8 flex justify-end">
-        <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
+        <button type="button" className="btn-primary min-h-[44px] w-full sm:w-auto" onClick={() => setAdding(true)}>
           Add a page
         </button>
       </div>
 
-      <div className="card mt-4 overflow-hidden">
+      {/* Cards on a phone: the six-column table could not fit, and the
+          reorder arrows are the point of this screen. */}
+      <ul className="mt-4 space-y-3 lg:hidden">
+        {rows.map((r, i) => (
+          <li key={r.id} className="card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[16px] font-medium text-ink">{r.title}</p>
+                <p className="mono mt-1 text-[13px] text-muted">{r.path}</p>
+                <p className="mt-1 text-[13px] text-muted">
+                  {r.showInNav ? `In menu as "${r.navLabel || r.title}"` : "Hidden from the menu"}
+                </p>
+              </div>
+              <span className={`mono shrink-0 rounded border px-2 py-0.5 text-[11px] uppercase tracking-wider ${
+                r.published
+                  ? "border-green/40 bg-green/10 text-green"
+                  : "border-gold/40 bg-gold/10 text-gold"
+              }`}>
+                {r.published ? "Live" : "Draft"}
+              </span>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button type="button" aria-label={`Move ${r.title} up`} disabled={pending || i === 0}
+                className="btn-secondary min-h-[44px] px-4 disabled:opacity-30"
+                onClick={() => start(async () => { await movePage(r.id, "up"); })}>↑</button>
+              <button type="button" aria-label={`Move ${r.title} down`} disabled={pending || i === rows.length - 1}
+                className="btn-secondary min-h-[44px] px-4 disabled:opacity-30"
+                onClick={() => start(async () => { await movePage(r.id, "down"); })}>↓</button>
+              <button type="button" className="btn-secondary min-h-[44px] flex-1"
+                onClick={() => { setNotice(null); setOpen(r); }}>
+                Edit
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="card mt-4 hidden overflow-hidden lg:block">
         <table className="w-full text-left">
           <thead className="border-b border-line bg-paper">
             <tr>
@@ -158,7 +196,7 @@ function Drawer({ label, children, onClose }: {
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="flex-1 bg-ink/40" onClick={onClose} aria-hidden />
       <div role="dialog" aria-label={label}
-        className="w-full max-w-[640px] overflow-y-auto border-l border-line bg-white">
+        className="w-full overflow-y-auto border-line bg-white sm:max-w-[640px] sm:border-l">
         {children}
       </div>
     </div>
