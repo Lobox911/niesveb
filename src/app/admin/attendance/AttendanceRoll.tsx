@@ -1,5 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { markAttendanceById } from "../actions";
 
 type Row = {
   id: string;
@@ -29,6 +31,35 @@ export default function AttendanceRoll({
 }: { rows: Row[]; expected: number; present: number }) {
   const [q, setQ] = useState("");
   const [view, setView] = useState<"all" | "present" | "absent">("all");
+
+  // Tapping a name is the fast path at the desk, but a mis-tap would mark the
+  // wrong person and there is no undo, so the row asks once before writing.
+  // Two taps on the right person beats one tap on the wrong one.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  const mark = (id: string) =>
+    start(async () => {
+      const res = await markAttendanceById(id);
+      setConfirming(null);
+      if (!("ok" in res)) {
+        setError(res.error);
+        setNote(null);
+        return;
+      }
+      setError(null);
+      setNote(
+        res.repeat
+          ? `${res.name} was already present. The second scan has been recorded.`
+          : `${res.name} marked present.`,
+      );
+      // Refresh so the counts and the roll reflect the new record.
+      router.refresh();
+      setTimeout(() => setNote(null), 5000);
+    });
 
   const physical = rows.filter((r) => r.mode !== "virtual");
   const virtual = rows.filter((r) => r.mode === "virtual");
@@ -116,7 +147,23 @@ export default function AttendanceRoll({
         </div>
       </div>
 
-      <div className="card mt-4 overflow-x-auto">
+      {note && (
+        <p role="status" className="mt-4 rounded border border-green bg-green/10 p-4 text-[15px] text-green">
+          {note}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mt-4 rounded border border-danger bg-white p-4 text-[15px] text-danger">
+          {error}
+        </p>
+      )}
+
+      <p className="help mt-4">
+        Tap a name to mark them present. The passcode box above is for scanning
+        the QR code on a participant card.
+      </p>
+
+      <div className="card mt-3 overflow-x-auto">
         <table className="w-full border-collapse text-left">
           <caption className="sr-only">Confirmed participants and their attendance</caption>
           <thead>
@@ -138,36 +185,61 @@ export default function AttendanceRoll({
                 </td>
               </tr>
             )}
-            {shown.map((r) => (
-              <tr key={r.id} className="border-b border-line last:border-b-0">
-                <th scope="row" className="whitespace-nowrap px-4 py-3 text-[15px] font-medium text-ink">
-                  {r.name}
-                  {r.membershipNo && (
-                    <span className="mono ml-2 text-[12px] text-muted">{r.membershipNo}</span>
-                  )}
-                </th>
-                <td className="mono whitespace-nowrap px-4 py-3 text-[14px] text-muted">{r.passcode}</td>
-                <td className="px-4 py-3 text-[14px] text-muted">{r.category}</td>
-                <td className="px-4 py-3 text-[14px] capitalize text-muted">{r.mode}</td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  {r.scans > 0 ? (
-                    <span className="text-[14px] text-green">
-                      {time(r.firstSeen)}
-                      {/* A second scan is not an error, but it is worth seeing:
-                          usually somebody scanned twice, occasionally it means
-                          a code is being shared. */}
-                      {r.scans > 1 && (
-                        <span className="mono ml-2 text-[12px] text-gold">
-                          {r.scans} scans
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-[14px] text-muted">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {shown.map((r) => {
+              const asking = confirming === r.id;
+              return (
+                <tr
+                  key={r.id}
+                  className={`border-b border-line last:border-b-0 ${
+                    asking ? "bg-green/5" : r.scans > 0 ? "" : "cursor-pointer hover:bg-paper"
+                  }`}
+                  onClick={() => { if (!asking) { setConfirming(r.id); setError(null); } }}
+                >
+                  <th scope="row" className="whitespace-nowrap px-4 py-3 text-[15px] font-medium text-ink">
+                    {r.name}
+                    {r.membershipNo && (
+                      <span className="mono ml-2 text-[12px] text-muted">{r.membershipNo}</span>
+                    )}
+                  </th>
+                  <td className="mono whitespace-nowrap px-4 py-3 text-[14px] text-muted">{r.passcode}</td>
+                  <td className="px-4 py-3 text-[14px] text-muted">{r.category}</td>
+                  <td className="px-4 py-3 text-[14px] capitalize text-muted">{r.mode}</td>
+
+                  <td className="whitespace-nowrap px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    {asking ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button" disabled={pending}
+                          className="btn-primary px-4 py-1.5 text-[14px] disabled:opacity-60"
+                          onClick={() => mark(r.id)}
+                        >
+                          {pending ? "Marking" : r.scans > 0 ? "Mark again" : "Confirm present"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary px-3 py-1.5 text-[14px]"
+                          onClick={() => setConfirming(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : r.scans > 0 ? (
+                      <span className="text-[14px] text-green">
+                        {time(r.firstSeen)}
+                        {/* A second scan is not an error, but it is worth
+                            seeing: usually somebody scanned twice,
+                            occasionally it means a code is being shared. */}
+                        {r.scans > 1 && (
+                          <span className="mono ml-2 text-[12px] text-gold">{r.scans} scans</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[14px] text-muted">Tap to mark present</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
