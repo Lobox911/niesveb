@@ -233,11 +233,6 @@ export default function RegistrationsTable({
           <caption className="sr-only">Registrations, newest first</caption>
           <thead>
             <tr className="border-b border-line">
-              {/* A checkbox in a header says nothing about what it does. The
-                  labelled button above the table does. */}
-              <th scope="col" className="mono w-10 px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
-                <span className="sr-only">Select</span>
-              </th>
               {["Passcode", "Name", "Category", "Mode", "Amount", "Reference", "Status", "Registered"].map((h) => (
                 <th key={h} scope="col" className="mono whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
                   {h}
@@ -247,7 +242,7 @@ export default function RegistrationsTable({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-[15px] text-muted">
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-[15px] text-muted">
                 No registrations match these filters.
               </td></tr>
             )}
@@ -259,16 +254,6 @@ export default function RegistrationsTable({
                 onKeyDown={(e) => { if (e.key === "Enter") setOpen(r); }}
                 className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper focus:bg-paper"
               >
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  {r.status === "pending" && (
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${r.firstName} ${r.surname}`}
-                      checked={picked.has(r.id)}
-                      onChange={() => toggle(r.id)}
-                    />
-                  )}
-                </td>
                 <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">
                   {r.passcode ?? <span className="text-muted">Not issued</span>}
                 </th>
@@ -279,10 +264,28 @@ export default function RegistrationsTable({
                 <td className="px-4 py-3 text-[14px] capitalize text-muted">{r.mode}</td>
                 <td className="mono whitespace-nowrap px-4 py-3 text-right text-[14px] text-ink">{r.amount}</td>
                 <td className="mono px-4 py-3 text-[13px] text-muted">{r.txnRef || "—"}</td>
-                <td className="px-4 py-3">
-                  <span className={`mono rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${STATUS_TONE[r.status]}`}>
-                    {r.status}
-                  </span>
+                {/* The checkbox sits with the status rather than in a column
+                    of its own: only pending rows can be selected, so a
+                    dedicated column was empty on most rows and headed by
+                    nothing. Here it reads as "this one is awaiting — tick it". */}
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  {r.status === "pending" ? (
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${r.firstName} ${r.surname} for bulk confirmation`}
+                        checked={picked.has(r.id)}
+                        onChange={() => toggle(r.id)}
+                      />
+                      <span className={`mono rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${STATUS_TONE[r.status]}`}>
+                        {r.status}
+                      </span>
+                    </label>
+                  ) : (
+                    <span className={`mono rounded border px-2 py-1 text-[11px] uppercase tracking-wider ${STATUS_TONE[r.status]}`}>
+                      {r.status}
+                    </span>
+                  )}
                 </td>
                 <td className="mono whitespace-nowrap px-4 py-3 text-[13px] text-muted">
                   {new Date(r.createdAt).toLocaleDateString("en-NG", { day: "2-digit", month: "short" })}
