@@ -233,8 +233,34 @@ export default function RegistrationsTable({
           <caption className="sr-only">Registrations, newest first</caption>
           <thead>
             <tr className="border-b border-line">
-              <th scope="col" className="mono w-12 whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
-                Select
+              {/* Select-all sits in the header beside its own label, which is
+                  where anyone who has used a mailbox expects it. The label is
+                  what stops it being a mystery box. */}
+              <th scope="col" className="w-12 whitespace-nowrap px-4 py-3">
+                <label className="mono inline-flex cursor-pointer items-center gap-2 text-[12px] uppercase tracking-wider text-muted">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label={
+                      allChosen
+                        ? "Clear the selection"
+                        : `Select all ${selectable.length} awaiting confirmation`
+                    }
+                    title={
+                      selectable.length === 0
+                        ? "Nothing is awaiting confirmation"
+                        : allChosen
+                          ? "Clear the selection"
+                          : `Select all ${selectable.length} awaiting confirmation`
+                    }
+                    disabled={selectable.length === 0}
+                    checked={allChosen}
+                    onChange={() =>
+                      setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
+                    }
+                  />
+                  Select
+                </label>
               </th>
               {["Passcode", "Name", "Category", "Mode", "Amount", "Reference", "Status", "Registered"].map((h) => (
                 <th key={h} scope="col" className="mono whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
