@@ -112,7 +112,28 @@ export default function RegistrationsTable({
         <a className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none" href="/api/export/registrations?attended=1">
           Export attendance list
         </a>
+
+        {selectable.length > 1 && (
+          <button
+            type="button"
+            className="btn-secondary min-h-[44px] flex-1 sm:flex-none"
+            onClick={() =>
+              setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
+            }
+          >
+            {allChosen
+              ? "Clear selection"
+              : `Select all ${selectable.length} awaiting`}
+          </button>
+        )}
       </div>
+
+      {selectable.length > 0 && (
+        <p className="help mt-3">
+          Tick the registrations awaiting confirmation to confirm several at
+          once. Each one gets its participation code and an email.
+        </p>
+      )}
 
       {chosen.length > 0 && (
         <div
@@ -169,11 +190,24 @@ export default function RegistrationsTable({
           </li>
         )}
         {rows.map((r) => (
-          <li key={r.id}>
+          <li key={r.id} className={`card p-4 ${picked.has(r.id) ? "border-green bg-green/5" : ""}`}>
+            {/* The checkbox sits outside the card button rather than inside
+                it: nesting an input in a button makes the tap target
+                ambiguous, and tapping to select would open the drawer. */}
+            {r.status === "pending" && (
+              <label className="mb-3 flex items-center gap-3 text-[14px] text-ink">
+                <input
+                  type="checkbox"
+                  checked={picked.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                />
+                Select for bulk confirm
+              </label>
+            )}
             <button
               type="button"
               onClick={() => setOpen(r)}
-              className="card flex w-full items-start justify-between gap-3 p-4 text-left active:bg-paper"
+              className="flex w-full items-start justify-between gap-3 text-left"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-[16px] font-medium text-ink">
@@ -199,16 +233,10 @@ export default function RegistrationsTable({
           <caption className="sr-only">Registrations, newest first</caption>
           <thead>
             <tr className="border-b border-line">
-              <th scope="col" className="w-10 px-4 py-3">
-                <input
-                  type="checkbox"
-                  aria-label="Select all awaiting confirmation on this page"
-                  disabled={selectable.length === 0}
-                  checked={allChosen}
-                  onChange={() =>
-                    setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
-                  }
-                />
+              {/* A checkbox in a header says nothing about what it does. The
+                  labelled button above the table does. */}
+              <th scope="col" className="mono w-10 px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
+                <span className="sr-only">Select</span>
               </th>
               {["Passcode", "Name", "Category", "Mode", "Amount", "Reference", "Status", "Registered"].map((h) => (
                 <th key={h} scope="col" className="mono whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
