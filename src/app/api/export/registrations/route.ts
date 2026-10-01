@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, registrations, categories, events, attendance, certificates } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 
@@ -59,11 +59,24 @@ export async function GET(request: Request) {
   const attendedOnly = url.searchParams.get("attended") === "1";
 
   const filters = [];
-  if (status === "pending" || status === "confirmed" || status === "rejected") {
-    filters.push(eq(registrations.status, status));
+
+  /* An explicit list of rows beats every other filter: the officer ticked
+     exactly these, and silently intersecting that with the status filter
+     would hand back fewer rows than they chose. */
+  const idParam = url.searchParams.get("ids");
+  const ids = idParam
+    ? idParam.split(",").map((v) => v.trim()).filter((v) => /^[0-9a-f-]{36}$/i.test(v))
+    : [];
+
+  if (ids.length > 0) {
+    filters.push(inArray(registrations.id, ids));
+  } else {
+    if (status === "pending" || status === "confirmed" || status === "rejected") {
+      filters.push(eq(registrations.status, status));
+    }
+    if (categoryId) filters.push(eq(registrations.categoryId, categoryId));
+    if (eventId) filters.push(eq(registrations.eventId, eventId));
   }
-  if (categoryId) filters.push(eq(registrations.categoryId, categoryId));
-  if (eventId) filters.push(eq(registrations.eventId, eventId));
 
   const rows = await db
     .select({
@@ -157,7 +170,9 @@ export async function GET(request: Request) {
   const csv = "﻿" + [row(header), ...body].join("\r\n") + "\r\n";
 
   const today = new Date().toISOString().slice(0, 10);
-  const label = [status, attendedOnly ? "attended" : null].filter(Boolean).join("-");
+  const label = ids.length
+    ? "selected"
+    : [status, attendedOnly ? "attended" : null].filter(Boolean).join("-");
   const filename = `registrations-${label ? `${label}-` : ""}${today}.csv`;
 
   return new Response(csv, {

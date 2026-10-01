@@ -38,7 +38,31 @@ export default function RegistrationsTable({
   const selectable = rows.filter((r) => r.status === "pending");
   const chosen = selectable.filter((r) => picked.has(r.id));
   const allChosen = selectable.length > 0 && chosen.length === selectable.length;
-  const selecting = picked.size > 0;
+  /* Two reasons to be picking rows, and they allow different things: anything
+     can be exported, only an awaiting registration can be confirmed. One set
+     of ticks serves both; the bar offers whatever the selection supports. */
+  const [mode, setMode] = useState<null | "export" | "attendance">(null);
+  const selecting = picked.size > 0 || mode !== null;
+  const canTick = (r: Row) => mode !== null || r.status === "pending";
+  const exportHref = (extra: Record<string, string> = {}) =>
+    `/api/export/registrations?${new URLSearchParams({
+      ...(Object.fromEntries(
+        Object.entries(query).filter(([, v]) => v),
+      ) as Record<string, string>),
+      ...extra,
+    }).toString()}`;
+  const tickable = rows.filter(canTick);
+  const allTicked = tickable.length > 0 && tickable.every((r) => picked.has(r.id));
+
+  const startMode = (next: "export" | "attendance") => {
+    setMode(next);
+    setPicked(new Set());
+  };
+
+  const cancel = () => {
+    setMode(null);
+    setPicked(new Set());
+  };
 
   const toggle = (id: string) => {
     setPicked((prev) => {
@@ -102,19 +126,28 @@ export default function RegistrationsTable({
       {/* Export reflects the filters above it, so "confirmed only" or one
           category is one click rather than a spreadsheet edit afterwards. */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <a
-          className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none"
-          href={`/api/export/registrations?${new URLSearchParams(
-            Object.fromEntries(Object.entries(query).filter(([, v]) => v)) as Record<string, string>,
-          ).toString()}`}
+        <button
+          type="button"
+          aria-pressed={mode === "export"}
+          className={`btn-secondary min-h-[44px] flex-1 sm:flex-none ${mode === "export" ? "border-green text-green" : ""}`}
+          onClick={() => (mode === "export" ? cancel() : startMode("export"))}
         >
-          Export these to CSV
-        </a>
-        <a className="btn-secondary min-h-[44px] flex-1 text-center sm:flex-none" href="/api/export/registrations?attended=1">
+          Export to CSV
+        </button>
+        <button
+          type="button"
+          aria-pressed={mode === "attendance"}
+          className={`btn-secondary min-h-[44px] flex-1 sm:flex-none ${mode === "attendance" ? "border-green text-green" : ""}`}
+          onClick={() => (mode === "attendance" ? cancel() : startMode("attendance"))}
+        >
           Export attendance list
-        </a>
+        </button>
 
-        {selectable.length > 1 && (
+        {/* Hidden while exporting: in that mode the header checkbox selects
+            everything on the page, and a second control scoped only to the
+            awaiting rows would select a different set from the one its label
+            implies. */}
+        {!mode && selectable.length > 1 && (
           <button
             type="button"
             className="btn-secondary min-h-[44px] flex-1 sm:flex-none"
@@ -122,59 +155,79 @@ export default function RegistrationsTable({
               setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
             }
           >
-            {allChosen
-              ? "Clear selection"
-              : `Select all ${selectable.length} awaiting`}
+            {allChosen ? "Clear selection" : `Select all ${selectable.length} awaiting`}
           </button>
         )}
       </div>
 
-      {selectable.length > 0 && (
+      {(selecting || selectable.length > 0 || rows.length > 0) && (
         <p className="help mt-3">
-          The checkbox at the top of the table selects the{" "}
-          <strong className="font-medium text-ink">
-            {selectable.length} awaiting confirmation
-          </strong>{" "}
-          on this page — rows already confirmed or rejected are left alone.
-          Confirming issues each participation code and emails it. To confirm
-          one person, open their row instead.
+          {mode
+            ? "Tick the rows you want, then use the button above the table. Leave everything unticked and cancel to start again."
+            : selectable.length > 0
+              ? `Tick the ${selectable.length} awaiting confirmation to confirm them together — each gets its participation code and an email. Press Export to choose rows for a spreadsheet instead.`
+              : "Press Export to choose which registrations go into the spreadsheet."}
         </p>
       )}
 
-      {chosen.length > 0 && (
+      {selecting && (
         <div
           role="status"
-          className="sticky top-2 z-20 mt-5 flex flex-wrap items-center justify-between gap-4 rounded border border-green bg-white p-4 shadow-none"
+          className="sticky top-2 z-20 mt-5 flex flex-wrap items-center justify-between gap-4 rounded border border-green bg-white p-4"
         >
           <p className="text-[15px] text-ink">
-            {chosen.length} {chosen.length === 1 ? "registration" : "registrations"} selected
-            <span className="help mt-0.5 block">
-              Confirming issues each participation code and emails it. There is
-              no undo.
-            </span>
+            {picked.size === 0
+              ? mode === "attendance"
+                ? "Tick the participants to include in the attendance list"
+                : "Tick the registrations to export"
+              : `${picked.size} ${picked.size === 1 ? "registration" : "registrations"} selected`}
+            {chosen.length > 0 && (
+              <span className="help mt-0.5 block">
+                {chosen.length} of them {chosen.length === 1 ? "is" : "are"} awaiting
+                confirmation. Confirming issues each participation code and emails
+                it. There is no undo.
+              </span>
+            )}
           </p>
-          <div className="flex gap-2">
-            <button type="button" className="btn-secondary px-4" onClick={() => setPicked(new Set())}>
-              Clear
+
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-secondary min-h-[44px] px-4" onClick={cancel}>
+              Cancel
             </button>
-            <button
-              type="button"
-              disabled={bulkPending}
-              className="btn-primary px-5 disabled:opacity-60"
-              onClick={() => startBulk(async () => {
-                const ids = chosen.map((r) => r.id);
-                const res = await confirmManyPayments(ids);
-                setPicked(new Set());
-                setBulkNote(
-                  res?.error
-                    ? res.error
-                    : `Confirmed ${res?.count ?? ids.length}. Codes have been issued and emailed.`,
-                );
-                setTimeout(() => setBulkNote(null), 6000);
-              })}
-            >
-              {bulkPending ? "Confirming" : `Confirm ${chosen.length}`}
-            </button>
+
+            {picked.size > 0 && (
+              <a
+                className="btn-secondary min-h-[44px] px-4"
+                href={exportHref({
+                  ids: [...picked].join(","),
+                  ...(mode === "attendance" ? { attended: "1" } : {}),
+                })}
+                onClick={() => setTimeout(cancel, 500)}
+              >
+                Export {picked.size} to CSV
+              </a>
+            )}
+
+            {chosen.length > 0 && (
+              <button
+                type="button"
+                disabled={bulkPending}
+                className="btn-primary min-h-[44px] px-5 disabled:opacity-60"
+                onClick={() => startBulk(async () => {
+                  const ids = chosen.map((r) => r.id);
+                  const res = await confirmManyPayments(ids);
+                  cancel();
+                  setBulkNote(
+                    res?.error
+                      ? res.error
+                      : `Confirmed ${res?.count ?? ids.length}. Codes have been issued and emailed.`,
+                  );
+                  setTimeout(() => setBulkNote(null), 6000);
+                })}
+              >
+                {bulkPending ? "Confirming" : `Confirm ${chosen.length}`}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -199,7 +252,7 @@ export default function RegistrationsTable({
           <li key={r.id} className={`card p-4 ${picked.has(r.id) ? "border-green bg-green/5" : ""}`}>
             {/* Same rule as the table: the tick shows up once a selection is
                 under way, and the label makes it unambiguous on a phone. */}
-            {selecting && r.status === "pending" && (
+            {selecting && canTick(r) && (
               <label className="mb-3 flex items-center gap-3 text-[14px] text-ink">
                 <input
                   type="checkbox"
@@ -248,24 +301,16 @@ export default function RegistrationsTable({
                   "Select" also implied it would tick every row, when it only
                   ever ticks the ones that can still be confirmed. The line
                   above the table carries that meaning instead. */}
-              {selectable.length > 0 && (
+              {(selecting || selectable.length > 0) && (
                 <th scope="col" className="w-9 px-3 py-3">
                   <input
                     type="checkbox"
                     className="h-4 w-4 cursor-pointer align-middle"
-                    aria-label={
-                      allChosen
-                        ? "Clear the selection"
-                        : `Select the ${selectable.length} awaiting confirmation`
-                    }
-                    title={
-                      allChosen
-                        ? "Clear the selection"
-                        : `Select the ${selectable.length} awaiting confirmation`
-                    }
-                    checked={allChosen}
+                    aria-label={allTicked ? "Clear the selection" : `Select all ${tickable.length}`}
+                    title={allTicked ? "Clear the selection" : `Select all ${tickable.length} on this page`}
+                    checked={allTicked}
                     onChange={() =>
-                      setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
+                      setPicked(allTicked ? new Set() : new Set(tickable.map((r) => r.id)))
                     }
                   />
                 </th>
@@ -279,7 +324,7 @@ export default function RegistrationsTable({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={selectable.length > 0 ? 9 : 8} className="px-4 py-12 text-center text-[15px] text-muted">
+              <tr><td colSpan={selecting || selectable.length > 0 ? 9 : 8} className="px-4 py-12 text-center text-[15px] text-muted">
                 No registrations match these filters.
               </td></tr>
             )}
@@ -299,9 +344,9 @@ export default function RegistrationsTable({
                     row shows its tick — which is both the feedback that
                     something happened and the way to drop one person without
                     losing the rest. */}
-                {selectable.length > 0 && (
+                {(selecting || selectable.length > 0) && (
                   <td className="w-9 px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    {selecting && r.status === "pending" && (
+                    {selecting && canTick(r) && (
                       <input
                         type="checkbox"
                         className="h-4 w-4 cursor-pointer align-middle"
