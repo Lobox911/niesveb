@@ -28,32 +28,38 @@ export default async function AuthShell({
       )}
 
       <div className="relative z-10 w-full max-w-[420px]">
-        <div className="flex items-center gap-3">
-          {branch.logoUrl && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={branch.logoUrl} alt="" className="h-11 w-auto" />
-          )}
-          <div>
-            <p className="text-[17px] font-semibold leading-tight text-white">MCPD Portal</p>
-            <p className="text-[13px] leading-tight text-white/70">
-              {branch.branchName.replace(/^NIESV\s*/, "")}
-            </p>
+        {/* Centred as a block: crest, name, heading and intro read as one
+            masthead. The form below stays left-aligned inside its card —
+            centred labels and inputs are harder to scan down. */}
+        <div className="flex flex-col items-center text-center">
+          <div className="flex items-center gap-3">
+            {branch.logoUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={branch.logoUrl} alt="" className="h-11 w-auto" />
+            )}
+            <div className="text-left">
+              <p className="text-[17px] font-semibold leading-tight text-white">MCPD Portal</p>
+              <p className="text-[13px] leading-tight text-white/70">
+                {branch.branchName.replace(/^NIESV\s*/, "")}
+              </p>
+            </div>
           </div>
+          <h1 className="mt-8 text-[26px] text-white">{heading}</h1>
+          <p className="mt-2 max-w-[38ch] text-[15px] leading-relaxed text-white/75">{intro}</p>
         </div>
-
-        <h1 className="mt-8 text-[26px] text-white">{heading}</h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-white/75">{intro}</p>
 
         {children}
 
-        <Link
-          href="/"
-          target="_blank"
-          rel="noopener"
-          className="mt-8 inline-block text-[14px] text-white/80 underline underline-offset-4 hover:text-white"
-        >
-          Return to the public site
-        </Link>
+        <div className="mt-8 text-center">
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener"
+            className="text-[14px] text-white/80 underline underline-offset-4 hover:text-white"
+          >
+            Return to the public site
+          </Link>
+        </div>
       </div>
     </div>
   );
