@@ -18,6 +18,30 @@ import QRCode from "qrcode";
 const PAGE_W = 842;
 const PAGE_H = 595;
 
+/** Which parts are printed. A missing key means on. */
+export type CertificateParts = {
+  crest?: boolean;
+  branchName?: boolean;
+  heading?: boolean;
+  border?: boolean;
+  certifyLine?: boolean;
+  statement?: boolean;
+  theme?: boolean;
+  units?: boolean;
+  signatures?: boolean;
+  qr?: boolean;
+  serial?: boolean;
+  verifyLine?: boolean;
+};
+
+export type ExtraLine = {
+  text: string;
+  /** Where it goes in the stack. */
+  place: "underHeading" | "underName" | "underStatement" | "aboveSignatures" | "footer";
+  size?: "small" | "normal" | "large";
+  style?: "plain" | "italic" | "bold";
+};
+
 export type CertificateInput = {
   name: string;
   category: string;
@@ -41,6 +65,9 @@ export type CertificateInput = {
   verifyUrl: string;
   /** Printed under the QR. The URL itself is often percent-encoded. */
   verifyLabel: string;
+
+  parts?: CertificateParts;
+  extraLines?: ExtraLine[];
 
   primaryHex: string;
   accentHex: string;
@@ -154,6 +181,27 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
   const primary = hex(input.primaryHex, [11, 110, 79]);
   const accent = hex(input.accentHex, [176, 138, 46]);
 
+  // A part is on unless it has been explicitly switched off, so a branch that
+  // never opens the designer gets the whole certificate.
+  const on = (k: keyof CertificateParts) => input.parts?.[k] !== false;
+
+  const SIZES = { small: 10, normal: 12.5, large: 16 } as const;
+
+  /** Draws whatever the branch wrote for one position, and returns the new y. */
+  const extras = (place: ExtraLine["place"], y: number) => {
+    const lines = (input.extraLines ?? []).filter(
+      (l) => l.place === place && l.text.trim(),
+    );
+    let cursor = y;
+    for (const l of lines) {
+      const size = SIZES[l.size ?? "normal"];
+      const font = l.style === "bold" ? serifBold : l.style === "italic" ? serifItalic : serif;
+      cursor = centreWrapped(page, l.text.trim(), font, size, PAGE_W - 200, cursor, size + 6, muted);
+      cursor -= 6;
+    }
+    return cursor;
+  };
+
   const background = await embed(doc, input.background, input.backgroundType);
 
   if (background) {
@@ -162,14 +210,16 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
     // Drawn certificate: a double rule rather than a decorative border, which
     // is what an institution actually issues.
     page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: rgb(1, 1, 1) });
-    page.drawRectangle({
-      x: 24, y: 24, width: PAGE_W - 48, height: PAGE_H - 48,
-      borderColor: primary, borderWidth: 2,
-    });
-    page.drawRectangle({
-      x: 32, y: 32, width: PAGE_W - 64, height: PAGE_H - 64,
-      borderColor: accent, borderWidth: 0.75,
-    });
+    if (on("border")) {
+      page.drawRectangle({
+        x: 24, y: 24, width: PAGE_W - 48, height: PAGE_H - 48,
+        borderColor: primary, borderWidth: 2,
+      });
+      page.drawRectangle({
+        x: 32, y: 32, width: PAGE_W - 64, height: PAGE_H - 64,
+        borderColor: accent, borderWidth: 0.75,
+      });
+    }
   }
 
   let y = PAGE_H - 78;
@@ -177,7 +227,7 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
   // The crest sits above everything, and only when there is no artwork — a
   // designed certificate already carries one.
   if (!background) {
-    const crest = await embed(doc, input.crest, input.crestType);
+    const crest = on("crest") ? await embed(doc, input.crest, input.crestType) : null;
     if (crest) {
       const h = 56;
       const w = (crest.width / crest.height) * h;
@@ -185,25 +235,32 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
       y -= h + 6;
     }
 
-    centre(page, input.branchName.toUpperCase(), sans, 11, y, muted);
-    y -= 34;
+    if (on("branchName")) {
+      centre(page, input.branchName.toUpperCase(), sans, 11, y, muted);
+      y -= 34;
+    }
 
-    centre(page, "CERTIFICATE OF PARTICIPATION", serifBold, 26, y, ink);
-    y -= 12;
+    if (on("heading")) {
+      centre(page, "CERTIFICATE OF PARTICIPATION", serifBold, 26, y, ink);
+      y -= 12;
+      page.drawLine({
+        start: { x: PAGE_W / 2 - 90, y },
+        end: { x: PAGE_W / 2 + 90, y },
+        thickness: 1.5, color: accent,
+      });
+      y -= 44;
+    }
 
-    page.drawLine({
-      start: { x: PAGE_W / 2 - 90, y },
-      end: { x: PAGE_W / 2 + 90, y },
-      thickness: 1.5, color: accent,
-    });
-    y -= 44;
+    y = extras("underHeading", y);
   } else {
     // Artwork supplies the heading; start lower and draw only the variables.
     y = PAGE_H - 210;
   }
 
-  centre(page, "This is to certify that", serifItalic, 13, y, muted);
-  y -= 50;
+  if (on("certifyLine")) {
+    centre(page, "This is to certify that", serifItalic, 13, y, muted);
+    y -= 50;
+  }
 
   centreFitted(page, input.name, serifBold, 34, 18, PAGE_W - 220, y, primary);
   y -= 16;
@@ -212,7 +269,10 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
     start: { x: 150, y }, end: { x: PAGE_W - 150, y },
     thickness: 0.75, color: rgb(0.85, 0.87, 0.85),
   });
-  y -= 40;
+  y -= 30;
+
+  y = extras("underName", y);
+  y -= 10;
 
   const statement = input.statement
     .replace("{event}", input.eventTitle)
@@ -222,16 +282,25 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
     .replace("{units}", String(input.units))
     .replace("{category}", input.category);
 
-  y = centreWrapped(page, statement, serif, 13.5, PAGE_W - 200, y, 22, ink);
-  y -= 10;
+  if (on("statement")) {
+    y = centreWrapped(page, statement, serif, 13.5, PAGE_W - 200, y, 22, ink);
+    y -= 10;
+  }
 
-  if (input.eventTheme) {
+  if (on("theme") && input.eventTheme) {
     y = centreWrapped(page, `"${input.eventTheme}"`, serifItalic, 12.5, PAGE_W - 240, y, 18, muted);
     y -= 14;
   }
 
+  y = extras("underStatement", y);
+
   // Credit points get their own line: it is the reason the document exists.
-  centre(page, `${input.units} MCPD CREDIT ${input.units === 1 ? "UNIT" : "UNITS"}`, sans, 11, y - 6, accent);
+  if (on("units")) {
+    centre(page, `${input.units} MCPD CREDIT ${input.units === 1 ? "UNIT" : "UNITS"}`, sans, 11, y - 6, accent);
+    y -= 22;
+  }
+
+  extras("aboveSignatures", y - 8);
 
   /* ---- signatures ---- */
 
@@ -248,7 +317,7 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
   ];
 
   for (const col of columns) {
-    if (!col.name) continue;
+    if (!col.name || !on("signatures")) continue;
 
     const sig = await embed(doc, col.image, col.type);
     if (sig) {
@@ -275,7 +344,7 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
 
   // A certificate nobody can check is decoration. The QR and the serial are
   // what make this a record.
-  try {
+  if (on("qr")) try {
     const png = await QRCode.toDataURL(input.verifyUrl, {
       margin: 0, width: 240, errorCorrectionLevel: "M",
       color: { dark: "#101E2E", light: "#FFFFFF" },
@@ -289,10 +358,16 @@ export async function buildCertificate(input: CertificateInput): Promise<Uint8Ar
     // No QR is survivable; a failed download is not.
   }
 
-  centre(page, `Serial ${input.serial}`, sans, 8.5, 62, muted);
-  // The bare domain, not the full link: the encoded serial in the real URL
-  // renders as %2F and reads like a mistake. The QR carries the full address.
-  centre(page, `Verify at ${input.verifyLabel}`, sans, 7.5, 50, muted);
+  if (on("serial")) {
+    centre(page, `Serial ${input.serial}`, sans, 8.5, 62, muted);
+  }
+  if (on("verifyLine")) {
+    // The bare domain, not the full link: the encoded serial in the real URL
+    // renders as %2F and reads like a mistake. The QR carries the full address.
+    centre(page, `Verify at ${input.verifyLabel}`, sans, 7.5, 50, muted);
+  }
+
+  extras("footer", 40);
 
   return doc.save();
 }

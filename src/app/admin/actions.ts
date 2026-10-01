@@ -1133,14 +1133,58 @@ export async function updateCertificateSettings(formData: FormData) {
     patch.certificateSerialPrefix = prefixRaw.toUpperCase();
   }
 
-  const chairSig = blobUrl(formData, "chairmanSignatureUrl");
-  if (chairSig) { patch.chairmanSignatureUrl = chairSig; patch.chairmanSignaturePath = blobPath(chairSig); }
+  /* An upload sets the URL; "remove" clears it. Without the clear there was
+     no way back from an uploaded artwork to the code-drawn certificate — the
+     field only ever accepted a replacement. */
+  const image = (field: string, urlCol: string, pathCol: string) => {
+    if (formData.get(`${field}__remove`) === "1") {
+      patch[urlCol] = null;
+      patch[pathCol] = null;
+      return;
+    }
+    const url = blobUrl(formData, field);
+    if (url) { patch[urlCol] = url; patch[pathCol] = blobPath(url); }
+  };
 
-  const secSig = blobUrl(formData, "secretarySignatureUrl");
-  if (secSig) { patch.secretarySignatureUrl = secSig; patch.secretarySignaturePath = blobPath(secSig); }
+  image("chairmanSignatureUrl", "chairmanSignatureUrl", "chairmanSignaturePath");
+  image("secretarySignatureUrl", "secretarySignatureUrl", "secretarySignaturePath");
+  image("certificateBackgroundUrl", "certificateBackgroundUrl", "certificateBackgroundPath");
 
-  const bg = blobUrl(formData, "certificateBackgroundUrl");
-  if (bg) { patch.certificateBackgroundUrl = bg; patch.certificateBackgroundPath = blobPath(bg); }
+  /* Only known keys are stored, so a tampered form cannot write arbitrary
+     JSON into a column the generator reads. */
+  const PARTS = [
+    "crest", "branchName", "heading", "border", "certifyLine", "statement",
+    "theme", "units", "signatures", "qr", "serial", "verifyLine",
+  ] as const;
+
+  if (formData.has("partsSubmitted")) {
+    const parts: Record<string, boolean> = {};
+    for (const key of PARTS) {
+      if (formData.get(`part.${key}`) !== "on") parts[key] = false;
+    }
+    patch.certificateParts = Object.keys(parts).length ? JSON.stringify(parts) : null;
+  }
+
+  if (formData.has("extraLinesJson")) {
+    const PLACES = new Set(["underHeading", "underName", "underStatement", "aboveSignatures", "footer"]);
+    const SIZES = new Set(["small", "normal", "large"]);
+    const STYLES = new Set(["plain", "italic", "bold"]);
+    try {
+      const raw = JSON.parse(String(formData.get("extraLinesJson") || "[]"));
+      const clean = (Array.isArray(raw) ? raw : [])
+        .filter((l) => l && typeof l.text === "string" && l.text.trim())
+        .slice(0, 5)
+        .map((l) => ({
+          text: String(l.text).slice(0, 160).trim(),
+          place: PLACES.has(l.place) ? l.place : "underStatement",
+          size: SIZES.has(l.size) ? l.size : "normal",
+          style: STYLES.has(l.style) ? l.style : "plain",
+        }));
+      patch.certificateExtraLines = clean.length ? JSON.stringify(clean) : null;
+    } catch {
+      return { error: "The extra lines could not be read. Remove them and add them again." };
+    }
+  }
 
   await db.update(branchSettings).set(patch).where(eq(branchSettings.id, 1));
   await audit(officer.id, "update_certificate", "branch_settings", "1", { fields: Object.keys(patch) });

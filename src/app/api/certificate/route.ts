@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db, registrations, categories, events, attendance, certificates, branchSettings } from "@/db";
 import { normalisePasscode } from "@/lib/passcode";
-import { buildCertificate } from "@/lib/certificate";
+import { buildCertificate, type CertificateParts, type ExtraLine } from "@/lib/certificate";
 import { dateRange } from "@/lib/site";
 
 export const runtime = "nodejs";
@@ -172,6 +172,18 @@ export async function POST(request: Request) {
 
   const name = [r.title, r.firstName, r.otherNames, r.surname].filter(Boolean).join(" ");
 
+  /* Stored as JSON. A malformed value must not cost somebody their
+     certificate, so anything unparseable falls back to the full layout. */
+  const parse = <T,>(raw: string | null | undefined, fallback: T): T => {
+    if (!raw) return fallback;
+    try {
+      const v = JSON.parse(raw);
+      return v ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
   const pdf = await buildCertificate({
     name,
     category: r.categoryName,
@@ -196,6 +208,8 @@ export async function POST(request: Request) {
     background: background?.bytes, backgroundType: background?.type,
     chairmanSignature: chairSig?.bytes, chairmanSignatureType: chairSig?.type,
     secretarySignature: secSig?.bytes, secretarySignatureType: secSig?.type,
+    parts: parse<CertificateParts>(b?.certificateParts, {}),
+    extraLines: parse<ExtraLine[]>(b?.certificateExtraLines, []),
   });
 
   const filename = `Certificate-${serial.replace(/[^A-Za-z0-9]+/g, "-")}.pdf`;

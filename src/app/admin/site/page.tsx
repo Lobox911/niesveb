@@ -147,6 +147,8 @@ export default async function SitePage() {
           certificateBackgroundUrl={s?.certificateBackgroundUrl ?? null}
           certificateSerialPrefix={s?.certificateSerialPrefix ?? "NIESV-EB"}
           certificateStatement={s?.certificateStatement ?? ""}
+          certificateParts={s?.certificateParts ?? ""}
+          certificateExtraLines={s?.certificateExtraLines ?? ""}
         />
       </div>
       </TabbedSections>

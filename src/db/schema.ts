@@ -111,6 +111,17 @@ export const branchSettings = pgTable("branch_settings", {
   /* The line above the signatures. Blank uses the shipped wording. */
   certificateStatement: text("certificate_statement"),
 
+  /* Which parts are printed, as JSON: {"crest":true,"theme":false,…}.
+     A missing key means on, so a branch that never opens this screen keeps
+     the full certificate, and a part added later appears without a migration. */
+  certificateParts: text("certificate_parts"),
+
+  /* Up to three extra lines the branch writes themselves, as JSON:
+     [{"text":"…","place":"underStatement","size":"normal","style":"italic"}].
+     For the things no standard layout anticipates — an accreditation number,
+     a co-host, a motto. */
+  certificateExtraLines: text("certificate_extra_lines"),
+
   /* One account for every event, per the branch. */
   bankName: text("bank_name"),
   accountName: text("account_name"),
