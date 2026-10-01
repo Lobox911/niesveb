@@ -1,23 +1,14 @@
-import type { Metadata } from "next";
 import Link from "next/link";
-import LoginForm from "./LoginForm";
 import { getBranch } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Admin sign in", robots: { index: false } };
-export const dynamic = "force-dynamic";
-
 /**
- * The sign-in page carries the branch's own hero image, blurred.
- *
- * Blurred rather than sharp on purpose: this image was chosen for the home
- * page hero, where it sits behind a headline. Behind a form it would compete
- * with the fields. Blur plus a dark wash turns it into texture that says whose
- * site this is without making the inputs harder to read.
- *
- * With no image uploaded the page falls back to solid ink, which is a
- * perfectly good sign-in page rather than a broken one.
+ * Shared chrome for the sign-in, forgotten-password and reset pages, so all
+ * three carry the same blurred branch backdrop rather than one being styled
+ * and the other two looking like an unfinished afterthought.
  */
-export default async function AdminLoginPage() {
+export default async function AuthShell({
+  heading, intro, children,
+}: { heading: string; intro: string; children: React.ReactNode }) {
   const branch = await getBranch();
   const backdrop = branch.heroImageUrl || branch.bannerImageUrl;
 
@@ -30,8 +21,6 @@ export default async function AdminLoginPage() {
             src={backdrop}
             alt=""
             aria-hidden
-            /* scale-110 hides the soft transparent edge that blur leaves
-               around the bounds of the image. */
             className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
           />
           <div className="absolute inset-0 bg-ink/75" aria-hidden />
@@ -52,13 +41,10 @@ export default async function AdminLoginPage() {
           </div>
         </div>
 
-        <h1 className="mt-8 text-[26px] text-white">Admin sign in</h1>
-        <p className="mt-2 text-[15px] text-white/75">
-          For authorised {branch.branchName.replace(/^NIESV\s*/, "NIESV ")} administrators.
-          Every sign in is recorded.
-        </p>
+        <h1 className="mt-8 text-[26px] text-white">{heading}</h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-white/75">{intro}</p>
 
-        <LoginForm />
+        {children}
 
         <Link
           href="/"

@@ -394,6 +394,34 @@ export const officers = pgTable(
   (t) => [uniqueIndex("officers_email_idx").on(t.email)],
 );
 
+/**
+ * One-time links for setting a new password.
+ *
+ * Only a hash of the token is stored. The link lands in an inbox and sits
+ * there, and a database copy that can be used as-is turns a leaked backup into
+ * a set of working admin logins.
+ *
+ * Deliberately short lived and single use. `usedAt` rather than deleting the
+ * row, so a second click can say "this link has already been used" instead of
+ * the same message an expired link gets.
+ */
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    officerId: uuid("officer_id").notNull().references(() => officers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    requestedIp: text("requested_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("password_resets_token_idx").on(t.tokenHash),
+    index("password_resets_officer_idx").on(t.officerId),
+  ],
+);
+
 export const auditLog = pgTable(
   "audit_log",
   {

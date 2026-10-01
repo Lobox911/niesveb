@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -45,10 +46,17 @@ export default function AdminShell({
     <div className="min-h-screen bg-paper lg:grid lg:grid-cols-[240px_1fr]">
       {/* Phone: a bar. */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line bg-white px-4 py-3 lg:hidden">
-        <div>
-          <p className="text-[16px] font-semibold leading-tight text-ink">MCPD Portal</p>
-          <p className="text-[12px] leading-tight text-muted">Ebonyi State Branch</p>
-        </div>
+        {/* Opens the public site in a new tab. New tab specifically because
+            it leaves the dashboard — the nav links below stay in place, or an
+            officer ends up with nine tabs by mid-morning. */}
+        <Link href="/" target="_blank" rel="noopener" className="group">
+          <span className="block text-[16px] font-semibold leading-tight text-ink group-hover:underline">
+            MCPD Portal
+          </span>
+          <span className="block text-[12px] leading-tight text-muted">
+            Ebonyi State Branch
+          </span>
+        </Link>
         <button
           type="button"
           aria-expanded={open}
@@ -83,10 +91,22 @@ export default function AdminShell({
 
       {/* Laptop: the sidebar, unchanged. */}
       <aside className="hidden flex-col border-r border-line bg-white lg:flex lg:min-h-screen">
-        <div className="border-b border-line p-5">
-          <p className="text-[17px] font-semibold text-ink">MCPD Portal</p>
-          <p className="text-[13px] text-muted">Ebonyi State Branch</p>
-        </div>
+        <Link
+          href="/"
+          target="_blank"
+          rel="noopener"
+          title="Open the public site in a new tab"
+          className="group block border-b border-line p-5"
+        >
+          <span className="flex items-center gap-1.5 text-[17px] font-semibold text-ink group-hover:underline">
+            MCPD Portal
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.5" className="opacity-0 transition-opacity group-hover:opacity-60" aria-hidden>
+              <path d="M14 4h6v6M20 4 10 14M18 14v6H4V6h6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="block text-[13px] text-muted">Ebonyi State Branch</span>
+        </Link>
         {nav}
         <div className="mt-auto border-t border-line p-5">{footer}</div>
       </aside>

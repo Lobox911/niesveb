@@ -30,7 +30,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <form action={logoutAction}>
             <button type="submit" className="btn-secondary mt-3 w-full">Sign out</button>
           </form>
-          <a href="/" className="mt-3 block text-center text-[13px] text-muted hover:text-ink hover:underline">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener"
+            className="mt-3 block text-center text-[13px] text-muted hover:text-ink hover:underline"
+          >
             View public site
           </a>
         </>

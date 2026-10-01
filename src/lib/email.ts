@@ -186,6 +186,35 @@ download it again at any time.</p>`;
   );
 }
 
+/**
+ * The password reset link.
+ *
+ * No branding flourish and no marketing: this is the email that gets somebody
+ * back into the dashboard, and the plainer it is the more likely it lands in
+ * an inbox rather than a spam folder.
+ */
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  name: string;
+  url: string;
+  minutes: number;
+}) {
+  const branch = await getBranch();
+  const body = `
+<p>Dear ${opts.name},</p>
+<p>Someone asked to reset the password for your ${branch.branchName} dashboard
+account. Use the link below to set a new one.</p>
+<p><a href="${opts.url}" style="display:inline-block;background:#0B6E4F;color:#ffffff;padding:12px 22px;border-radius:4px;text-decoration:none">Set a new password</a></p>
+<p>The link works once and expires in ${opts.minutes} minutes.</p>
+<p>If you did not ask for this, nothing has changed and you can ignore this
+message — but tell the branch administrator, because it means somebody entered
+your address on the sign-in page.</p>
+<p style="font-size:13px;color:#5C6660">If the button does not work, copy this
+address into your browser:<br>${opts.url}</p>`;
+
+  return send(opts.to, `Reset your ${branch.branchName} dashboard password`, wrap(branch.branchName, body));
+}
+
 export async function sendRejectedEmail(opts: {
   to: string; name: string; eventTitle: string; reason: string;
 }) {
