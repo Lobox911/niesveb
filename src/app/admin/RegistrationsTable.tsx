@@ -122,9 +122,12 @@ export default function RegistrationsTable({
 
       {selectable.length > 0 && (
         <p className="help mt-3">
-          Use <strong className="font-medium text-ink">Select</strong> to pick
-          every registration awaiting confirmation, then confirm them together.
-          Each one gets its participation code and an email. To confirm just
+          The checkbox at the top of the table selects the{" "}
+          <strong className="font-medium text-ink">
+            {selectable.length} awaiting confirmation
+          </strong>{" "}
+          on this page — rows already confirmed or rejected are left alone.
+          Confirming issues each participation code and emails it. To confirm
           one person, open their row instead.
         </p>
       )}
@@ -217,34 +220,33 @@ export default function RegistrationsTable({
               {/* The whole column disappears when nothing on the page is
                   awaiting confirmation — on the Confirmed filter a greyed
                   checkbox that cannot do anything reads as broken rather than
-                  as "nothing to select". */}
+                  as "nothing to select".
+
+                  No visible word: the column was as wide as its heading, and
+                  "Select" also implied it would tick every row, when it only
+                  ever ticks the ones that can still be confirmed. The line
+                  above the table carries that meaning instead. */}
               {selectable.length > 0 && (
-              <th scope="col" className="w-12 whitespace-nowrap px-4 py-3">
-                <label className="mono inline-flex cursor-pointer items-center gap-2 text-[12px] uppercase tracking-wider text-muted">
+                <th scope="col" className="w-9 px-3 py-3">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-4 w-4 cursor-pointer align-middle"
                     aria-label={
                       allChosen
                         ? "Clear the selection"
-                        : `Select all ${selectable.length} awaiting confirmation`
+                        : `Select the ${selectable.length} awaiting confirmation`
                     }
                     title={
-                      selectable.length === 0
-                        ? "Nothing is awaiting confirmation"
-                        : allChosen
-                          ? "Clear the selection"
-                          : `Select all ${selectable.length} awaiting confirmation`
+                      allChosen
+                        ? "Clear the selection"
+                        : `Select the ${selectable.length} awaiting confirmation`
                     }
-                    disabled={selectable.length === 0}
                     checked={allChosen}
                     onChange={() =>
                       setPicked(allChosen ? new Set() : new Set(selectable.map((r) => r.id)))
                     }
                   />
-                  Select
-                </label>
-              </th>
+                </th>
               )}
               {["Passcode", "Name", "Category", "Mode", "Amount", "Reference", "Status", "Registered"].map((h) => (
                 <th key={h} scope="col" className="mono whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
@@ -270,7 +272,7 @@ export default function RegistrationsTable({
                 {/* Keeps the row aligned with the header when the Select
                     column is present. Selection itself is all-or-nothing from
                     the header, narrowed with the Awaiting filter. */}
-                {selectable.length > 0 && <td className="px-4 py-3" />}
+                {selectable.length > 0 && <td className="w-9 px-3 py-3" />}
 
                 <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">
                   {r.passcode ?? <span className="text-muted">Not issued</span>}
