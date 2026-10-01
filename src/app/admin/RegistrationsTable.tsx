@@ -39,14 +39,6 @@ export default function RegistrationsTable({
   const chosen = selectable.filter((r) => picked.has(r.id));
   const allChosen = selectable.length > 0 && chosen.length === selectable.length;
 
-  const toggle = (id: string) => {
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
     if (value) next.set(key, value); else next.delete(key);
@@ -130,8 +122,10 @@ export default function RegistrationsTable({
 
       {selectable.length > 0 && (
         <p className="help mt-3">
-          Tick the registrations awaiting confirmation to confirm several at
-          once. Each one gets its participation code and an email.
+          Use <strong className="font-medium text-ink">Select</strong> to pick
+          every registration awaiting confirmation, then confirm them together.
+          Each one gets its participation code and an email. To confirm just
+          one person, open their row instead.
         </p>
       )}
 
@@ -191,19 +185,6 @@ export default function RegistrationsTable({
         )}
         {rows.map((r) => (
           <li key={r.id} className={`card p-4 ${picked.has(r.id) ? "border-green bg-green/5" : ""}`}>
-            {/* The checkbox sits outside the card button rather than inside
-                it: nesting an input in a button makes the tap target
-                ambiguous, and tapping to select would open the drawer. */}
-            {r.status === "pending" && (
-              <label className="mb-3 flex items-center gap-3 text-[14px] text-ink">
-                <input
-                  type="checkbox"
-                  checked={picked.has(r.id)}
-                  onChange={() => toggle(r.id)}
-                />
-                Select for bulk confirm
-              </label>
-            )}
             <button
               type="button"
               onClick={() => setOpen(r)}
@@ -233,9 +214,11 @@ export default function RegistrationsTable({
           <caption className="sr-only">Registrations, newest first</caption>
           <thead>
             <tr className="border-b border-line">
-              {/* Select-all sits in the header beside its own label, which is
-                  where anyone who has used a mailbox expects it. The label is
-                  what stops it being a mystery box. */}
+              {/* The whole column disappears when nothing on the page is
+                  awaiting confirmation — on the Confirmed filter a greyed
+                  checkbox that cannot do anything reads as broken rather than
+                  as "nothing to select". */}
+              {selectable.length > 0 && (
               <th scope="col" className="w-12 whitespace-nowrap px-4 py-3">
                 <label className="mono inline-flex cursor-pointer items-center gap-2 text-[12px] uppercase tracking-wider text-muted">
                   <input
@@ -262,6 +245,7 @@ export default function RegistrationsTable({
                   Select
                 </label>
               </th>
+              )}
               {["Passcode", "Name", "Category", "Mode", "Amount", "Reference", "Status", "Registered"].map((h) => (
                 <th key={h} scope="col" className="mono whitespace-nowrap px-4 py-3 text-[12px] uppercase tracking-wider text-muted">
                   {h}
@@ -271,7 +255,7 @@ export default function RegistrationsTable({
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-[15px] text-muted">
+              <tr><td colSpan={selectable.length > 0 ? 9 : 8} className="px-4 py-12 text-center text-[15px] text-muted">
                 No registrations match these filters.
               </td></tr>
             )}
@@ -283,22 +267,10 @@ export default function RegistrationsTable({
                 onKeyDown={(e) => { if (e.key === "Enter") setOpen(r); }}
                 className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper focus:bg-paper"
               >
-                {/* First column, so a run of pending rows can be ticked
-                    straight down the left edge without the eye travelling
-                    across to the status column each time. */}
-                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  {r.status === "pending" ? (
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 cursor-pointer align-middle"
-                      aria-label={`Select ${r.firstName} ${r.surname} for bulk confirmation`}
-                      checked={picked.has(r.id)}
-                      onChange={() => toggle(r.id)}
-                    />
-                  ) : (
-                    <span className="sr-only">Already confirmed</span>
-                  )}
-                </td>
+                {/* Keeps the row aligned with the header when the Select
+                    column is present. Selection itself is all-or-nothing from
+                    the header, narrowed with the Awaiting filter. */}
+                {selectable.length > 0 && <td className="px-4 py-3" />}
 
                 <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">
                   {r.passcode ?? <span className="text-muted">Not issued</span>}
