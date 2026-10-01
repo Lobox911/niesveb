@@ -38,6 +38,15 @@ export default function RegistrationsTable({
   const selectable = rows.filter((r) => r.status === "pending");
   const chosen = selectable.filter((r) => picked.has(r.id));
   const allChosen = selectable.length > 0 && chosen.length === selectable.length;
+  const selecting = picked.size > 0;
+
+  const toggle = (id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
@@ -188,6 +197,19 @@ export default function RegistrationsTable({
         )}
         {rows.map((r) => (
           <li key={r.id} className={`card p-4 ${picked.has(r.id) ? "border-green bg-green/5" : ""}`}>
+            {/* Same rule as the table: the tick shows up once a selection is
+                under way, and the label makes it unambiguous on a phone. */}
+            {selecting && r.status === "pending" && (
+              <label className="mb-3 flex items-center gap-3 text-[14px] text-ink">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={picked.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                />
+                Selected for confirmation
+              </label>
+            )}
             <button
               type="button"
               onClick={() => setOpen(r)}
@@ -267,12 +289,29 @@ export default function RegistrationsTable({
                 tabIndex={0}
                 onClick={() => setOpen(r)}
                 onKeyDown={(e) => { if (e.key === "Enter") setOpen(r); }}
-                className="cursor-pointer border-b border-line last:border-b-0 hover:bg-paper focus:bg-paper"
+                className={`cursor-pointer border-b border-line last:border-b-0 focus:bg-paper ${
+                  picked.has(r.id) ? "bg-green/5" : "hover:bg-paper"
+                }`}
               >
-                {/* Keeps the row aligned with the header when the Select
-                    column is present. Selection itself is all-or-nothing from
-                    the header, narrowed with the Awaiting filter. */}
-                {selectable.length > 0 && <td className="w-9 px-3 py-3" />}
+                {/* Row checkboxes appear only once a selection is under way.
+                    Idle, the column is an empty gutter and the table stays
+                    quiet; the moment the header box is ticked, every selected
+                    row shows its tick — which is both the feedback that
+                    something happened and the way to drop one person without
+                    losing the rest. */}
+                {selectable.length > 0 && (
+                  <td className="w-9 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    {selecting && r.status === "pending" && (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer align-middle"
+                        aria-label={`${picked.has(r.id) ? "Deselect" : "Select"} ${r.firstName} ${r.surname}`}
+                        checked={picked.has(r.id)}
+                        onChange={() => toggle(r.id)}
+                      />
+                    )}
+                  </td>
+                )}
 
                 <th scope="row" className="mono whitespace-nowrap px-4 py-3 text-[14px] font-normal text-ink">
                   {r.passcode ?? <span className="text-muted">Not issued</span>}
