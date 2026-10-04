@@ -151,6 +151,15 @@ export async function getEventView(event: typeof events.$inferSelect) {
     flyerAlt: event.flyerAlt,
     status: event.status,
     startsAt: event.startsAt,
+    /* Split here rather than in the page: the page should render a list, not
+       parse one. Empty arrays mean "nothing of its own", which is what the
+       fallback chain on the home page tests. */
+    aboutHeading: event.aboutHeading || "",
+    aboutBody: (event.aboutBody || "")
+      .split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean),
+    takeawaysHeading: event.takeawaysHeading || "",
+    takeaways: (event.takeaways || "")
+      .split("\n").map((l) => l.trim()).filter(Boolean),
     ...content,
   };
 }

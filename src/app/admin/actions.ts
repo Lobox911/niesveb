@@ -337,6 +337,17 @@ export async function saveEvent(formData: FormData) {
     venueAddress: String(formData.get("venueAddress") ?? "").trim(),
     meetingUrl: String(formData.get("meetingUrl") ?? "").trim() || null,
     meetingId: String(formData.get("meetingId") ?? "").trim() || null,
+    /* Blank is stored as null rather than an empty string, so the public page
+       can tell "the branch cleared this" from "never set" and fall back. */
+    aboutHeading: String(formData.get("aboutHeading") ?? "").trim() || null,
+    aboutBody: String(formData.get("aboutBody") ?? "").trim() || null,
+    takeawaysHeading: String(formData.get("takeawaysHeading") ?? "").trim() || null,
+    takeaways: String(formData.get("takeaways") ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 8)
+      .join("\n") || null,
     status: (["draft", "open", "closed", "archived"] as const).includes(
       String(formData.get("status")) as never,
     )

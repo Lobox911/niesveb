@@ -8,6 +8,8 @@ type Ev = {
   startsAt: Date; endsAt: Date | null; registrationDeadline: Date | null;
   timeLine: string | null; venue: string; venueAddress: string;
   meetingUrl: string | null; meetingId: string | null; status: string;
+  aboutHeading: string | null; aboutBody: string | null;
+  takeawaysHeading: string | null; takeaways: string | null;
 };
 
 const iso = (d: Date | null | undefined) =>
@@ -116,6 +118,49 @@ export default function EventForm({ event }: { event?: Ev }) {
           </div>
         </fieldset>
       </div>
+
+      {/* Full width rather than a third column: this is prose, and a narrow
+          textarea makes two paragraphs look like twelve. */}
+      <fieldset className="card mt-5 p-6">
+        <legend className="mono px-2 text-[12px] uppercase tracking-wider text-muted">
+          About the seminar
+        </legend>
+        <p className="help mb-4">
+          The block under the hero on the home page. Leave anything blank to use
+          the standard wording.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="label" htmlFor="aboutHeading">Heading</label>
+            <input id="aboutHeading" name="aboutHeading" className="field"
+              defaultValue={event?.aboutHeading ?? ""} placeholder="About the seminar" />
+          </div>
+          <div>
+            <label className="label" htmlFor="aboutBody">Body text</label>
+            <textarea id="aboutBody" name="aboutBody" rows={7} className="field"
+              defaultValue={event?.aboutBody ?? ""} />
+            <p className="help">
+              Leave a blank line between paragraphs. Each one becomes its own
+              paragraph on the page.
+            </p>
+          </div>
+          <div>
+            <label className="label" htmlFor="takeawaysHeading">Second heading</label>
+            <input id="takeawaysHeading" name="takeawaysHeading" className="field"
+              defaultValue={event?.takeawaysHeading ?? ""} placeholder="What you leave with" />
+          </div>
+          <div>
+            <label className="label" htmlFor="takeaways">What they leave with</label>
+            <textarea id="takeaways" name="takeaways" rows={4} className="field"
+              defaultValue={event?.takeaways ?? ""}
+              placeholder={"MCPD credit units\nE-certificate of participation\nSeminar brochure"} />
+            <p className="help">
+              One per line, up to eight. They print across the page separated by
+              slashes, so keep each to a few words.
+            </p>
+          </div>
+        </div>
+      </fieldset>
 
       <div className="sticky bottom-0 mt-6 border-t border-line bg-paper py-4">
         {msg?.error && <p role="alert" className="mb-3 text-[14px] text-danger">{msg.error}</p>}

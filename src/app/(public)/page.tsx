@@ -149,8 +149,14 @@ export default async function Home() {
       <section className="container-content py-14 md:py-24">
         <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
           <div className="max-w-prose">
-            <h2 className="text-[26px]">About the seminar</h2>
-            {(branch.aboutBody.length > 0
+            <h2 className="text-[26px]">{event?.aboutHeading || "About the seminar"}</h2>
+            {/* The event's own copy wins, then the branch's, then the built-in
+                wording. Three levels because events created before this field
+                existed have nothing of their own, and the page still has to
+                read properly for them. */}
+            {(event?.aboutBody.length
+              ? event.aboutBody
+              : branch.aboutBody.length > 0
               ? branch.aboutBody
               : [
                   `The ${event?.title} brings practitioners in Ebonyi State together around current standards in estate surveying and valuation practice. Sessions address regulatory developments, valuation methodology and the tools shaping professional work.`,
@@ -163,10 +169,13 @@ export default async function Home() {
             ))}
 
             <h3 className="mono mt-10 text-[12px] uppercase tracking-wider text-muted">
-              What you leave with
+              {event?.takeawaysHeading || "What you leave with"}
             </h3>
             <ul className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
-              {["MCPD credit units", "E-certificate of participation", "Seminar brochure"].map((x) => (
+              {(event?.takeaways.length
+                ? event.takeaways
+                : ["MCPD credit units", "E-certificate of participation", "Seminar brochure"]
+              ).map((x) => (
                 <li key={x} className="flex gap-3 text-[15px] text-ink">
                   <span className="mono text-gold" aria-hidden>/</span>
                   {x}

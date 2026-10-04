@@ -90,7 +90,7 @@ export default async function SitePage() {
           {
             legend: "About the branch",
             fields: [
-              { name: "aboutBody", label: "Body text", textarea: true, help: "Leave a blank line between paragraphs. Blank falls back to the default copy." },
+              { name: "aboutBody", label: "Body text", textarea: true, help: "Used only when the featured event has no About text of its own. Write the seminar's own wording under Events → Edit event → About the seminar instead." },
             ],
           },
         ]}

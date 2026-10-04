@@ -217,6 +217,19 @@ export const events = pgTable(
     flyerPath: text("flyer_path"),
     flyerAlt: text("flyer_alt"),
 
+    /* The "About the seminar" block on the home page.
+       It lived in branch settings, which was wrong: the copy names the event,
+       its theme and its audience, so it has to change with the event rather
+       than once for the branch. Blank falls back to the branch text, and then
+       to the built-in wording, so an event added before this existed still
+       reads correctly. */
+    aboutHeading: text("about_heading"),
+    aboutBody: text("about_body"),
+    takeawaysHeading: text("takeaways_heading"),
+    /* One per line. A list rather than free text because they are printed as
+       slash-separated items, not sentences. */
+    takeaways: text("takeaways"),
+
     status: eventStatus("status").notNull().default("draft"),
     /* The one the home page features. Exactly one should be true; the admin
        clears the others when a new event is promoted. Several events can be
