@@ -162,8 +162,11 @@ export default async function Home() {
                   `The ${event?.title} brings practitioners in Ebonyi State together around current standards in estate surveying and valuation practice. Sessions address regulatory developments, valuation methodology and the tools shaping professional work.`,
                   "Attendance is open to Fellows, Members, probationers and students of the Institution, as well as allied professionals and the general public.",
                 ]
+            /* Justified, with hyphenation turned on. Justifying a narrow phone
+               column without it opens rivers of white space between words,
+               which looks worse than the ragged edge it replaces. */
             ).map((para: string, n: number) => (
-              <p key={n} className="mt-4 text-[17px] leading-relaxed text-muted">
+              <p key={n} className="mt-4 hyphens-auto text-justify text-[17px] leading-relaxed text-muted">
                 {para}
               </p>
             ))}
