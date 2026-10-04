@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { uploadFlyer, removeFlyer } from "../actions";
 import FileUpload from "@/components/FileUpload";
@@ -6,6 +7,12 @@ import FileUpload from "@/components/FileUpload";
 export default function FlyerUpload({
   eventId, current, alt,
 }: { eventId: string; current: string | null; alt: string | null }) {
+  /* The server action revalidates the cache, but this panel's `current` prop
+     came down with the page and nothing asks for it again — so after a
+     successful save the preview still showed the old flyer, or no flyer, and
+     the button still said "Upload". It read exactly like a save that failed.
+     router.refresh() re-fetches the server component and the panel catches up. */
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
 
@@ -38,6 +45,7 @@ export default function FlyerUpload({
             onClick={() => start(async () => {
               const res = await removeFlyer(eventId);
               setMsg(res);
+              if (res?.ok) router.refresh();
             })}
           >
             Remove flyer
@@ -51,7 +59,10 @@ export default function FlyerUpload({
           fd.set("eventId", eventId);
           const res = await uploadFlyer(fd);
           setMsg(res);
-          if (res?.ok) setTimeout(() => setMsg(null), 4000);
+          if (res?.ok) {
+            router.refresh();
+            setTimeout(() => setMsg(null), 4000);
+          }
         })}
       >
         <FileUpload

@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { uploadHeroBackground } from "../actions";
 import FileUpload from "@/components/FileUpload";
@@ -11,6 +12,8 @@ import FileUpload from "@/components/FileUpload";
 export default function HeroBackground({
   current, alt, tone,
 }: { current: string | null; alt: string | null; tone: string }) {
+  // Without this the panel keeps showing the file it was rendered with.
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
 
@@ -24,7 +27,11 @@ export default function HeroBackground({
 
       <form
         className="card mt-5 p-5"
-        action={(fd) => start(async () => { setMsg(await uploadHeroBackground(fd)); })}
+        action={(fd) => start(async () => {
+          const res = await uploadHeroBackground(fd);
+          setMsg(res);
+          if (res?.ok) router.refresh();
+        })}
       >
         {current && (
           <div className="mb-4">

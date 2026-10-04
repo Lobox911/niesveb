@@ -1,9 +1,12 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { uploadLogo } from "../actions";
 import FileUpload from "@/components/FileUpload";
 
 export default function LogoUpload({ current }: { current: string | null }) {
+  // Without this the panel keeps showing the file it was rendered with.
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
 
@@ -17,7 +20,11 @@ export default function LogoUpload({ current }: { current: string | null }) {
 
       <form
         className="card mt-5 p-5"
-        action={(fd) => start(async () => { setMsg(await uploadLogo(fd)); })}
+        action={(fd) => start(async () => {
+          const res = await uploadLogo(fd);
+          setMsg(res);
+          if (res?.ok) router.refresh();
+        })}
       >
         {current && (
           <div className="mb-4">

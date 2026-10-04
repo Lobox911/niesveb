@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { uploadBanner, removeBanner } from "../actions";
 import FileUpload from "@/components/FileUpload";
@@ -6,6 +7,8 @@ import FileUpload from "@/components/FileUpload";
 export default function BannerUpload({
   current, alt,
 }: { current: string | null; alt: string | null }) {
+  // Without this the panel keeps showing the file it was rendered with.
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
 
@@ -38,7 +41,10 @@ export default function BannerUpload({
         action={(fd) => start(async () => {
           const res = await uploadBanner(fd);
           setMsg(res);
-          if (res?.ok) setTimeout(() => setMsg(null), 4000);
+          if (res?.ok) {
+            router.refresh();
+            setTimeout(() => setMsg(null), 4000);
+          }
         })}
       >
         <FileUpload
