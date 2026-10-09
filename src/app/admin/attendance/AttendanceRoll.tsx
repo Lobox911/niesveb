@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { markAttendanceById } from "../actions";
+import { clearAttendance, markAttendanceById } from "../actions";
 
 type Row = {
   id: string;
@@ -57,6 +57,24 @@ export default function AttendanceRoll({
           : `${res.name} marked present.`,
       );
       // Refresh so the counts and the roll reflect the new record.
+      router.refresh();
+      setTimeout(() => setNote(null), 5000);
+    });
+
+  /* The repair for a mis-tap. It sits behind the same confirm step as marking
+     someone present, because taking a name off the roll is at least as
+     consequential as putting one on it. */
+  const unmark = (id: string) =>
+    start(async () => {
+      const res = await clearAttendance(id);
+      setConfirming(null);
+      if (!("ok" in res)) {
+        setError(res.error);
+        setNote(null);
+        return;
+      }
+      setError(null);
+      setNote(`${res.name} is no longer marked present.`);
       router.refresh();
       setTimeout(() => setNote(null), 5000);
     });
@@ -206,6 +224,15 @@ export default function AttendanceRoll({
                   >
                     {pending ? "Marking" : r.scans > 0 ? "Mark again" : "Confirm present"}
                   </button>
+                  {r.scans > 0 && (
+                    <button
+                      type="button" disabled={pending}
+                      className="btn-secondary min-h-[48px] px-4 border-danger text-danger disabled:opacity-50"
+                      onClick={() => unmark(r.id)}
+                    >
+                      Not arrived
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn-secondary min-h-[48px] px-5"
@@ -280,6 +307,15 @@ export default function AttendanceRoll({
                         >
                           {pending ? "Marking" : r.scans > 0 ? "Mark again" : "Confirm present"}
                         </button>
+                        {r.scans > 0 && (
+                          <button
+                            type="button" disabled={pending}
+                            className="btn-secondary border-danger px-3 py-1.5 text-[14px] text-danger disabled:opacity-50"
+                            onClick={() => unmark(r.id)}
+                          >
+                            Not arrived
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn-secondary px-3 py-1.5 text-[14px]"

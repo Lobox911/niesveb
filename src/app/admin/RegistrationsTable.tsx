@@ -1,12 +1,13 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { confirmManyPayments, confirmPayment, markAttendanceById, rejectPayment, resendPasscodeEmail } from "./actions";
+import { clearAttendance, confirmManyPayments, confirmPayment, deleteRegistration, markAttendanceById, rejectPayment, resendPasscodeEmail, updateRegistration } from "./actions";
 
 type Row = {
   id: string; passcode: string | null; title: string | null; surname: string; firstName: string;
+  otherNames: string | null; town: string | null;
   membershipNo: string | null; email: string; phone: string; firm: string | null;
-  categoryId: string; mode: string; amount: string; txnRef: string | null;
+  categoryId: string; mode: string; amount: string; amountKobo: number; txnRef: string | null;
   proofUrl: string | null; status: string; rejectionReason: string | null; createdAt: string;
   categoryName: string;
   scans: number; firstSeen: string | null; certificateSerial: string | null;
@@ -19,12 +20,14 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 export default function RegistrationsTable({
-  rows, categories, total, page, pageSize, query,
+  rows, categories, total, page, pageSize, query, isAdmin,
 }: {
   rows: Row[];
   categories: { id: string; name: string }[];
   total: number; page: number; pageSize: number;
   query: { q?: string; status?: string; category?: string };
+  /** Deleting a registration is an administrator's decision, not the desk's. */
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -395,18 +398,48 @@ export default function RegistrationsTable({
         </div>
       </div>
 
-      {open && <VerificationDrawer row={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <VerificationDrawer
+          row={open}
+          categories={categories}
+          isAdmin={isAdmin}
+          onClose={() => setOpen(null)}
+          onChanged={() => { setOpen(null); router.refresh(); }}
+        />
+      )}
     </>
   );
 }
 
-function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void }) {
+function VerificationDrawer({
+  row, categories, isAdmin, onClose, onChanged,
+}: {
+  row: Row;
+  categories: { id: string; name: string }[];
+  isAdmin: boolean;
+  onClose: () => void;
+  /** Close and re-read, so the table shows the corrected or removed row. */
+  onChanged: () => void;
+}) {
   const [pending, start] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [issued, setIssued] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <EditDrawer
+        row={row}
+        categories={categories}
+        isAdmin={isAdmin}
+        onCancel={() => setEditing(false)}
+        onSaved={onChanged}
+      />
+    );
+  }
 
   if (issued) {
     return (
@@ -442,7 +475,14 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
               {row.passcode ?? "Code issued on confirmation"}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="btn-secondary px-3">Close</button>
+          <div className="flex shrink-0 gap-2">
+            {/* The usual answer to a wrong detail. It sits beside Close so an
+                officer finds it while looking at the thing that is wrong. */}
+            <button type="button" onClick={() => setEditing(true)} className="btn-secondary px-3">
+              Edit
+            </button>
+            <button type="button" onClick={onClose} className="btn-secondary px-3">Close</button>
+          </div>
         </div>
 
         <div className="p-6">
@@ -552,6 +592,23 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
                 {row.scans > 0 ? "Mark present again" : "Mark present"}
               </button>
 
+              {/* The undo for a mis-tap, offered here because this is where an
+                  officer sees the wrong name against "Attended". */}
+              {row.scans > 0 && (
+                <button
+                  type="button" disabled={pending}
+                  className="btn-secondary border-danger px-4 text-danger disabled:opacity-50"
+                  onClick={() => start(async () => {
+                    const res = await clearAttendance(row.id);
+                    if (!("ok" in res)) { setError(res.error); setNote(null); return; }
+                    setError(null);
+                    setNote(`${res.name} is no longer marked present.`);
+                  })}
+                >
+                  Not arrived
+                </button>
+              )}
+
               <button
                 type="button" disabled={pending}
                 className="btn-secondary px-4 disabled:opacity-50"
@@ -622,6 +679,216 @@ function VerificationDrawer({ row, onClose }: { row: Row; onClose: () => void })
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Correcting a registration, and — for an administrator — removing it.
+ *
+ * A separate view rather than fields that become editable in place: the
+ * read-only drawer is what an officer uses at the desk while someone is
+ * standing there, and turning every value into a text box makes that screen
+ * harder to read for the sake of something done a handful of times an event.
+ */
+function EditDrawer({
+  row, categories, isAdmin, onCancel, onSaved,
+}: {
+  row: Row;
+  categories: { id: string; name: string }[];
+  isAdmin: boolean;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  /* The delete panel keeps its own error. Sharing one with the form put
+     "this record cannot be deleted" directly above Save changes, which reads
+     as a failed save — the opposite of what happened. */
+  const [delError, setDelError] = useState<string | null>(null);
+
+  /* Attendance and certificates both cascade from this row, so a delete would
+     take them with it — and a certificate already issued would stop resolving
+     on the verify page. Refused here as well as in the action, so the button
+     explains itself rather than failing after the click. */
+  const blocked =
+    row.scans > 0
+      ? "This participant has been marked present. Their attendance record would go with them."
+      : row.certificateSerial
+      ? `Certificate ${row.certificateSerial} has been issued. Deleting would break its verification page.`
+      : null;
+
+  const field = (
+    name: string,
+    label: string,
+    value: string,
+    extra?: { type?: string; help?: string; mono?: boolean },
+  ) => (
+    <div>
+      <label className="label" htmlFor={`e-${name}`}>{label}</label>
+      <input
+        id={`e-${name}`} name={name} defaultValue={value}
+        type={extra?.type ?? "text"}
+        className={extra?.mono ? "field-mono" : "field"}
+      />
+      {extra?.help && <p className="help">{extra.help}</p>}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="flex-1 bg-ink/40" onClick={onCancel} aria-hidden />
+      <div
+        role="dialog" aria-label="Edit registration"
+        className="flex w-full flex-col overflow-y-auto border-line bg-white sm:max-w-[560px] sm:border-l"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-line p-6">
+          <div>
+            <h2 className="text-[20px] text-ink">Edit registration</h2>
+            <p className="mono mt-1 text-[14px] text-muted">
+              {row.passcode ?? "No code issued yet"}
+            </p>
+          </div>
+          <button type="button" onClick={onCancel} className="btn-secondary shrink-0 px-3">
+            Cancel
+          </button>
+        </div>
+
+        <form
+          className="p-6"
+          action={(fd) => start(async () => {
+            fd.set("id", row.id);
+            const res = await updateRegistration(fd);
+            if (res?.error) { setError(res.error); return; }
+            onSaved();
+          })}
+        >
+          <h3 className="mono text-[12px] uppercase tracking-wider text-muted">Participant</h3>
+          <div className="mt-3 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-[100px_1fr]">
+              {field("title", "Title", row.title ?? "")}
+              {field("surname", "Surname", row.surname)}
+            </div>
+            {field("firstName", "First name", row.firstName)}
+            {field("otherNames", "Other names", row.otherNames ?? "")}
+            {field("membershipNo", "Membership number", row.membershipNo ?? "", {
+              mono: true,
+              help: "One membership number may register once per event. Clearing it is allowed for categories that do not need one.",
+            })}
+            {field("email", "Email", row.email, {
+              type: "email",
+              help: "The passcode and certificate go here. Changing it does not resend anything — use “Resend their code” after saving.",
+            })}
+            {field("phone", "Phone", row.phone, { mono: true })}
+            {field("firm", "Firm or organisation", row.firm ?? "")}
+            {field("town", "Town", row.town ?? "")}
+          </div>
+
+          <h3 className="mono mt-8 text-[12px] uppercase tracking-wider text-muted">
+            Category and payment
+          </h3>
+          <div className="mt-3 space-y-4">
+            <div>
+              <label className="label" htmlFor="e-categoryId">Category</label>
+              <select id="e-categoryId" name="categoryId" className="field" defaultValue={row.categoryId}>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <p className="help">
+                Changing the category does not change the amount below. Set both
+                if the participant picked the wrong one.
+              </p>
+            </div>
+            <div>
+              <label className="label" htmlFor="e-mode">Attendance mode</label>
+              <select id="e-mode" name="mode" className="field" defaultValue={row.mode}>
+                <option value="physical">Physical</option>
+                <option value="virtual">Virtual</option>
+              </select>
+            </div>
+            {field("amount", "Declared amount (₦)", (row.amountKobo / 100).toString(), {
+              mono: true,
+              help: "What they say they paid. Type it in naira, for example 10000.",
+            })}
+            {field("txnRef", "Bank reference / teller no.", row.txnRef ?? "", { mono: true })}
+          </div>
+
+          <p className="help mt-6">
+            The proof of payment stays attached and the participation code, if
+            one has been issued, stays the same.
+          </p>
+
+          {error && <p role="alert" className="mt-4 text-[14px] text-danger">{error}</p>}
+
+          <div className="mt-6 flex gap-3">
+            <button type="submit" disabled={pending} className="btn-primary flex-1 disabled:opacity-60">
+              {pending ? "Saving" : "Save changes"}
+            </button>
+            <button type="button" onClick={onCancel} className="btn-secondary flex-1">Cancel</button>
+          </div>
+        </form>
+
+        {isAdmin && (
+          <div className="mt-auto border-t border-line p-6">
+            <h3 className="mono text-[12px] uppercase tracking-wider text-danger">
+              Delete this registration
+            </h3>
+            <p className="mt-2 text-[14px] text-muted">
+              Permanent. Use it for a duplicate or a test entry. If the
+              participant simply made a mistake, correct it above instead —
+              deleting makes them fill in the form again and re-upload their
+              teller.
+            </p>
+
+            {blocked ? (
+              <p className="mt-3 rounded border border-line bg-paper p-4 text-[14px] text-muted">
+                {blocked}
+              </p>
+            ) : confirming ? (
+              <>
+                <label className="label mt-4" htmlFor="confirm-surname">
+                  Type the surname <span className="text-ink">{row.surname}</span> to confirm
+                </label>
+                <input
+                  id="confirm-surname" className="field" value={typed} autoComplete="off"
+                  onChange={(e) => { setTyped(e.target.value); setDelError(null); }}
+                />
+                {delError && <p role="alert" className="mt-3 text-[14px] text-danger">{delError}</p>}
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button" disabled={pending}
+                    className="btn-secondary flex-1 border-danger text-danger disabled:opacity-50"
+                    onClick={() => start(async () => {
+                      const res = await deleteRegistration(row.id, typed);
+                      if (res?.error) { setDelError(res.error); return; }
+                      onSaved();
+                    })}
+                  >
+                    {pending ? "Deleting" : "Delete permanently"}
+                  </button>
+                  <button
+                    type="button" className="btn-secondary flex-1"
+                    onClick={() => { setConfirming(false); setTyped(""); setDelError(null); }}
+                  >
+                    Keep it
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn-secondary mt-4 border-danger text-danger"
+                onClick={() => { setConfirming(true); setDelError(null); }}
+              >
+                Delete registration
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

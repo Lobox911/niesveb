@@ -98,7 +98,11 @@ export async function submitRegistration(_prev: unknown, formData: FormData) {
       .limit(1);
     if (dupe[0]) {
       return {
-        error: `Membership number ${membershipNo} is already registered for this event. Use "Retrieve code" to get your passcode.`,
+        /* The old wording sent people to "Retrieve code", which is no help to
+           the one who is here because they mistyped something and wanted to
+           start again. Telling them to call the branch is what actually ends
+           the problem, now that an officer can correct a record in place. */
+        error: `Membership number ${membershipNo} is already registered for this event. Use "Retrieve code" to get your passcode — or contact the branch if you need a detail on your registration corrected.`,
         duplicate: true,
       };
     }

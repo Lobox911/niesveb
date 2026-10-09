@@ -19,7 +19,7 @@ export default async function AdminDashboard({
 }: {
   searchParams: Promise<{ q?: string; status?: string; category?: string; page?: string }>;
 }) {
-  await requireOfficer();
+  const officer = await requireOfficer();
   const { q, status, category, page } = await searchParams;
   const pageNo = Math.max(1, Number(page) || 1);
 
@@ -60,6 +60,10 @@ export default async function AdminDashboard({
         title: registrations.title,
         surname: registrations.surname,
         firstName: registrations.firstName,
+        // Carried so the drawer's edit form can show every field it saves.
+        // Omitting one here silently blanks it when an officer saves.
+        otherNames: registrations.otherNames,
+        town: registrations.town,
         membershipNo: registrations.membershipNo,
         email: registrations.email,
         phone: registrations.phone,
@@ -130,9 +134,11 @@ export default async function AdminDashboard({
           createdAt: r.createdAt.toISOString(),
           firstSeen: r.firstSeen ? new Date(r.firstSeen).toISOString() : null,
           amount: naira(r.amountKobo),
+          amountKobo: r.amountKobo,
           categoryName: cats.find((c) => c.id === r.categoryId)?.name ?? "",
         }))}
         categories={cats.map((x) => ({ id: x.id, name: x.name }))}
+        isAdmin={officer.role === "admin"}
         total={total[0]?.n ?? 0}
         page={pageNo}
         pageSize={PAGE_SIZE}

@@ -1,10 +1,10 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import {
   db, registrations, attendance, auditLog, branchSettings, events, categories, officers,
-  heroSlides, advertRates, programmeItems, pages,
+  heroSlides, advertRates, programmeItems, pages, certificates,
 } from "@/db";
 import { authenticate, createSession, destroySession, requireOfficer, hashPassword } from "@/lib/auth";
 import { normalisePasscode, generatePasscode } from "@/lib/passcode";
@@ -1279,4 +1279,257 @@ export async function resendPasscodeEmail(registrationId: string) {
     return { error: "The email could not be sent. Check that email is configured, and read the code out instead." };
   }
   return { ok: true, email: r.email };
+}
+
+/* ---------- correcting and removing a registration ---------- */
+
+/**
+ * Fix a participant's details in place.
+ *
+ * The case this exists for: someone registers, spots a typo in their own name
+ * or picks the wrong category, and tries to register again. The second attempt
+ * is refused, because one membership number may register once per event — so
+ * without this they are stuck with the mistake, or an officer deletes the row
+ * and makes them re-upload a teller they may no longer have on their phone.
+ *
+ * Any officer can do this. It is the desk's ordinary work, and a misspelt
+ * surname on a certificate is a problem the branch hears about for months.
+ */
+export async function updateRegistration(formData: FormData) {
+  const officer = await requireOfficer();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "No registration selected." };
+
+  const rows = await db.select().from(registrations).where(eq(registrations.id, id)).limit(1);
+  const current = rows[0];
+  if (!current) return { error: "That registration no longer exists." };
+
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+
+  const surname = text("surname");
+  const firstName = text("firstName");
+  const email = text("email").toLowerCase();
+  const phone = text("phone").replace(/\D/g, "");
+  const membershipNo = text("membershipNo").toUpperCase() || null;
+
+  if (!surname) return { error: "Enter a surname." };
+  if (!firstName) return { error: "Enter a first name." };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return { error: "Enter a valid email address. The passcode and certificate are sent there." };
+  }
+  if (phone.length !== 11) return { error: "Enter an 11-digit phone number." };
+
+  const categoryId = text("categoryId");
+  const cat = categoryId
+    ? (await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1))[0]
+    : null;
+  if (!cat) return { error: "Choose a participation category." };
+  if (cat.eventId !== current.eventId) {
+    return { error: "That category belongs to a different event." };
+  }
+  if (cat.requiresMembershipNo && !membershipNo) {
+    return { error: `${cat.name} requires an NIESV membership number.` };
+  }
+
+  /* The same rule registration enforces, minus this row. Without the
+     exclusion, saving a record without touching the membership number would
+     report the participant as a duplicate of themselves. */
+  if (membershipNo) {
+    const clash = await db
+      .select({ id: registrations.id })
+      .from(registrations)
+      .where(and(
+        eq(registrations.eventId, current.eventId),
+        eq(registrations.membershipNo, membershipNo),
+        ne(registrations.id, id),
+      ))
+      .limit(1);
+    if (clash[0]) {
+      return { error: `Membership number ${membershipNo} already belongs to another registration for this event.` };
+    }
+  }
+
+  const mode = text("mode") === "virtual" ? "virtual" : "physical";
+
+  /* Naira in the form, kobo in the column. Rounded rather than truncated so
+     a figure typed as 10000.5 does not quietly become ₦10,000.49. */
+  const amountRaw = text("amount").replace(/[^0-9.]/g, "");
+  const amountKobo = amountRaw
+    ? Math.round(Number(amountRaw) * 100)
+    : current.amountKobo;
+  if (!Number.isFinite(amountKobo) || amountKobo < 0) {
+    return { error: "Enter the amount as a number, for example 10000." };
+  }
+
+  const next = {
+    title: text("title") || null,
+    surname,
+    firstName,
+    otherNames: text("otherNames") || null,
+    membershipNo,
+    email,
+    phone,
+    firm: text("firm") || null,
+    town: text("town") || null,
+    categoryId,
+    mode: mode as "physical" | "virtual",
+    amountKobo,
+    txnRef: text("txnRef") || null,
+    updatedAt: new Date(),
+  };
+
+  await db.update(registrations).set(next).where(eq(registrations.id, id));
+
+  /* Record what actually moved, not the whole row. An audit line reading
+     "changed surname from Okonkwo to Okonkwö" answers the question months
+     later; a dump of forty unchanged fields does not. */
+  const changed: Record<string, { from: unknown; to: unknown }> = {};
+  for (const [k, v] of Object.entries(next)) {
+    if (k === "updatedAt") continue;
+    const before = (current as Record<string, unknown>)[k];
+    if (before !== v) changed[k] = { from: before, to: v };
+  }
+
+  await audit(officer.id, "update_registration", "registrations", id, {
+    passcode: current.passcode,
+    changed,
+  });
+
+  revalidatePath("/admin");
+  return { ok: true, changed: Object.keys(changed).length };
+}
+
+/**
+ * Remove a registration entirely.
+ *
+ * Deliberately harder to reach than editing, and refused outright once the
+ * person has attended or been issued a certificate. Both of those tables
+ * cascade from this row, so deleting an attended participant would take their
+ * attendance record and their certificate with it — and a certificate already
+ * in someone's hands would stop resolving on the verify page, which is the one
+ * thing that makes it worth anything.
+ *
+ * Administrators only, and the surname must be typed back. The dashboard is a
+ * dense table of similar-looking rows; a confirm dialog alone is a reflex, not
+ * a decision.
+ */
+export async function deleteRegistration(id: string, typedSurname: string) {
+  const officer = await requireOfficer();
+  if (officer.role !== "admin") {
+    return { error: "Only a branch administrator can delete a registration." };
+  }
+
+  const rows = await db.select().from(registrations).where(eq(registrations.id, id)).limit(1);
+  const r = rows[0];
+  if (!r) return { error: "That registration no longer exists." };
+
+  if (typedSurname.trim().toLowerCase() !== r.surname.trim().toLowerCase()) {
+    return { error: `Type the surname "${r.surname}" exactly to confirm.` };
+  }
+
+  const [scans] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(attendance)
+    .where(eq(attendance.registrationId, id));
+  if ((scans?.n ?? 0) > 0) {
+    return {
+      error: "This participant has been marked present, so the record cannot be deleted. Correct their details instead.",
+    };
+  }
+
+  const cert = await db
+    .select({ serial: certificates.serial })
+    .from(certificates)
+    .where(eq(certificates.registrationId, id))
+    .limit(1);
+  if (cert[0]) {
+    return {
+      error: `A certificate (${cert[0].serial}) has been issued to this participant, so the record cannot be deleted. Correct their details instead.`,
+    };
+  }
+
+  /* Written before the row goes, and holding enough to answer "who was this
+     and what had they paid?" once the row itself is gone. The branch handles
+     money; a deletion with no trace of what was deleted is not acceptable. */
+  await audit(officer.id, "delete_registration", "registrations", id, {
+    name: [r.title, r.firstName, r.surname].filter(Boolean).join(" "),
+    email: r.email,
+    phone: r.phone,
+    membershipNo: r.membershipNo,
+    passcode: r.passcode,
+    amountKobo: r.amountKobo,
+    status: r.status,
+    txnRef: r.txnRef,
+    proofUrl: r.proofUrl,
+    registeredAt: r.createdAt,
+  });
+
+  await db.delete(registrations).where(eq(registrations.id, id));
+
+  /* The uploaded teller goes too. Leaving it would keep a stranger's bank
+     document in the store with nothing left pointing at it, which is the
+     worst of both worlds: still a liability, no longer visible to anyone.
+     A failure here must not fail the delete — the row is already gone. */
+  if (r.proofUrl) {
+    try { await del(r.proofUrl); } catch { /* the blob may already be gone */ }
+  }
+
+  revalidatePath("/admin");
+  return { ok: true, name: [r.firstName, r.surname].filter(Boolean).join(" ") };
+}
+
+/**
+ * Take a participant back off the roll.
+ *
+ * Attendance is append-only in normal use — every scan is a row, and a second
+ * scan records a second row rather than overwriting the first. That is right
+ * for a register, but it left one mistake uncorrectable: tapping the wrong
+ * name on a dense list marked a stranger present, with nothing to undo it.
+ * That phantom scan then made the person eligible for a certificate they did
+ * not earn, and blocked their registration from being deleted.
+ *
+ * Any officer may do this, not just an administrator. The mis-tap happens at a
+ * desk with a queue in front of it, and "find the chairman" is not a repair.
+ * The audit entry carries every scan it removed, so the correction is as
+ * visible as the original marking.
+ */
+export async function clearAttendance(id: string) {
+  const officer = await requireOfficer();
+
+  const rows = await db.select().from(registrations).where(eq(registrations.id, id)).limit(1);
+  const r = rows[0];
+  if (!r) return { error: "That registration no longer exists." };
+
+  const scans = await db.select().from(attendance).where(eq(attendance.registrationId, id));
+  if (scans.length === 0) {
+    return { error: "That participant is not marked present." };
+  }
+
+  /* A certificate is issued against attendance. Removing the attendance
+     underneath one would leave a document in circulation that the roll no
+     longer supports, so the certificate has to be dealt with first — which is
+     a decision, not a side effect of tapping undo. */
+  const cert = await db
+    .select({ serial: certificates.serial })
+    .from(certificates)
+    .where(eq(certificates.registrationId, id))
+    .limit(1);
+  if (cert[0]) {
+    return {
+      error: `Certificate ${cert[0].serial} was issued on the strength of this attendance, so it cannot be removed.`,
+    };
+  }
+
+  await audit(officer.id, "clear_attendance", "registrations", id, {
+    name: [r.title, r.firstName, r.surname].filter(Boolean).join(" "),
+    passcode: r.passcode,
+    removed: scans.map((s) => ({ at: s.markedAt, by: s.markedBy, method: s.method })),
+  });
+
+  await db.delete(attendance).where(eq(attendance.registrationId, id));
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/attendance");
+  return { ok: true, name: [r.firstName, r.surname].filter(Boolean).join(" "), removed: scans.length };
 }
