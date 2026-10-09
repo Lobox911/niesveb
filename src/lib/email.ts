@@ -41,13 +41,64 @@ async function send(to: string, subject: string, html: string) {
   }
 }
 
-/** Plain HTML, no images, no tracking. A new domain has no sending
- *  reputation, and heavy markup is what tips a first email into spam. */
-function wrap(branchName: string, body: string) {
+/**
+ * The shared shell: a crest and the branch name at the top, the message, a
+ * rule, and the branch name again at the foot.
+ *
+ * Still deliberately light. One small image and no tracking pixels, because
+ * heavy image-built markup is what tips mail into spam, and these messages
+ * carry a passcode somebody needs — arriving plainly beats arriving prettily.
+ *
+ * Three things make the header survive real mail clients:
+ *
+ *  - The branch name is text beside the crest, never baked into the image.
+ *    Gmail, Outlook and Apple Mail block remote images until the reader
+ *    allows them, so a logo carrying the name would leave the message
+ *    anonymous for most people on first open.
+ *  - The image is given explicit width and height. Without them Outlook
+ *    reserves no space and the layout jumps when the image loads.
+ *  - The header has its own white background. A crest on a transparent PNG
+ *    disappears against the dark canvas a client applies in dark mode.
+ */
+function wrap(
+  branch: { branchName: string; logoUrl: string | null; canonicalUrl: string },
+  body: string,
+) {
+  /* A relative path would resolve against the mail client, not the site, so
+     the crest only goes in when we have an absolute URL for it — and never an
+     SVG, which Gmail and Outlook both refuse to render. A crest uploaded as
+     SVG is fine on the website and would be a broken box here, so the header
+     falls back to the branch name alone. */
+  const crest =
+    branch.logoUrl
+    && /^https?:\/\//.test(branch.logoUrl)
+    && !/\.svg(\?|$)/i.test(branch.logoUrl)
+      ? `<img src="${branch.logoUrl}" width="44" height="44" alt=""
+           style="display:block;width:44px;height:44px;border:0;outline:none;text-decoration:none">`
+      : "";
+
+  /* A table, not flexbox: Outlook on Windows renders through Word, which
+     does not lay out flex at all. */
+  const header = `
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"
+       style="background:#FFFFFF;border-collapse:collapse;margin:0 0 24px">
+  <tr>
+    ${crest ? `<td style="padding:0 12px 0 0;vertical-align:middle">${crest}</td>` : ""}
+    <td style="vertical-align:middle">
+      <span style="font-size:16px;font-weight:600;color:#101E2E">${branch.branchName}</span>
+    </td>
+  </tr>
+</table>`;
+
+  const site = branch.canonicalUrl
+    ? `<br><a href="${branch.canonicalUrl}" style="color:#5C6660">${branch.canonicalUrl.replace(/^https?:\/\//, "")}</a>`
+    : "";
+
   return `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:#101E2E;max-width:560px">
+${header}
 ${body}
 <hr style="border:none;border-top:1px solid #DDE2DD;margin:24px 0">
-<p style="font-size:13px;color:#5C6660">${branchName}</p>
+<p style="font-size:13px;color:#5C6660">${branch.branchName}${site}</p>
 </div>`;
 }
 
@@ -100,7 +151,7 @@ ${bank}
   return send(
     opts.to,
     `Registration received — ${opts.eventTitle}`,
-    wrap(branch.branchName, body),
+    wrap(branch, body),
   );
 }
 
@@ -144,7 +195,7 @@ ${links}
 <p>Your certificate opens after the seminar, once your attendance has been
 recorded.</p>`;
 
-  return send(opts.to, `Payment confirmed — ${opts.eventTitle}`, wrap(branch.branchName, body));
+  return send(opts.to, `Payment confirmed — ${opts.eventTitle}`, wrap(branch, body));
 }
 
 /**
@@ -182,7 +233,7 @@ download it again at any time.</p>`;
   return send(
     opts.to,
     `Your certificate is ready — ${opts.eventTitle}`,
-    wrap(branch.branchName, body),
+    wrap(branch, body),
   );
 }
 
@@ -212,7 +263,7 @@ your address on the sign-in page.</p>
 <p style="font-size:13px;color:#5C6660">If the button does not work, copy this
 address into your browser:<br>${opts.url}</p>`;
 
-  return send(opts.to, `Reset your ${branch.branchName} dashboard password`, wrap(branch.branchName, body));
+  return send(opts.to, `Reset your ${branch.branchName} dashboard password`, wrap(branch, body));
 }
 
 export async function sendRejectedEmail(opts: {
@@ -226,5 +277,5 @@ export async function sendRejectedEmail(opts: {
 <p>Your registration is held, not cancelled. Contact the branch to resolve
 this and your code will be issued once the payment is confirmed.</p>
 ${branch.contactPhones.length ? `<p><strong>${branch.contactPhones.join(" · ")}</strong>${branch.contactEmail ? `<br>${branch.contactEmail}` : ""}</p>` : ""}`;
-  return send(opts.to, `Payment could not be confirmed — ${opts.eventTitle}`, wrap(branch.branchName, body));
+  return send(opts.to, `Payment could not be confirmed — ${opts.eventTitle}`, wrap(branch, body));
 }
