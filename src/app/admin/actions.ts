@@ -11,7 +11,8 @@ import { normalisePasscode, generatePasscode } from "@/lib/passcode";
 import { dateRange, getBranch } from "@/lib/site";
 import { SYSTEM_PAGES, systemPage, slugify, RESERVED_SLUGS } from "@/lib/pages";
 import { headers } from "next/headers";
-import { sendCertificateReadyEmail, sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
+import { sendCertificateEmail, sendCertificateReadyEmail, sendConfirmedEmail, sendRejectedEmail } from "@/lib/email";
+import { issueCertificate } from "@/lib/issue-certificate";
 import { del } from "@vercel/blob";
 
 /** The address to put in emails. Prefers the branch's canonical setting and
@@ -1127,11 +1128,39 @@ export async function updateCertificateSettings(formData: FormData) {
   const patch: Record<string, unknown> = {
     chairmanName: text("chairmanName") || null,
     chairmanTitle: text("chairmanTitle") || "Chairman",
+    chairmanPostNominals: text("chairmanPostNominals") || null,
     secretaryName: text("secretaryName") || null,
     secretaryTitle: text("secretaryTitle") || "Secretary",
+    secretaryPostNominals: text("secretaryPostNominals") || null,
     certificateStatement: text("certificateStatement") || null,
+    certificateHeading: text("certificateHeading") || "Certificate of Participation",
+    institutionName: text("institutionName") || "Nigerian Institution of Estate Surveyors and Valuers",
     updatedAt: new Date(),
   };
+
+  /* Colours are written into a PDF, so a malformed value would not fail
+     loudly — it would silently fall back and the branch would wonder why the
+     certificate was still the old colour. Refuse instead. */
+  for (const [field, col] of [
+    ["certificatePrimary", "certificatePrimary"],
+    ["certificateAccent", "certificateAccent"],
+  ] as const) {
+    const v = text(field);
+    if (v) {
+      if (!/^#?[0-9a-fA-F]{6}$/.test(v)) {
+        return { error: "Colours must be a six-digit hex value, for example #001E4C." };
+      }
+      patch[col] = v.startsWith("#") ? v.toUpperCase() : `#${v.toUpperCase()}`;
+    }
+  }
+
+  if (formData.has("certificateWatermark")) {
+    const n = Number(text("certificateWatermark"));
+    if (!Number.isFinite(n) || n < 0 || n > 40) {
+      return { error: "The watermark strength is a number between 0 and 40." };
+    }
+    patch.certificateWatermark = Math.round(n);
+  }
 
   // The prefix goes into a serial that is printed and cannot be corrected
   // afterwards, so anything that would produce a malformed serial is refused
@@ -1160,12 +1189,15 @@ export async function updateCertificateSettings(formData: FormData) {
   image("chairmanSignatureUrl", "chairmanSignatureUrl", "chairmanSignaturePath");
   image("secretarySignatureUrl", "secretarySignatureUrl", "secretarySignaturePath");
   image("certificateBackgroundUrl", "certificateBackgroundUrl", "certificateBackgroundPath");
+  image("esvarbonUrl", "esvarbonUrl", "esvarbonPath");
+  image("certificateWatermarkUrl", "certificateWatermarkUrl", "certificateWatermarkPath");
 
   /* Only known keys are stored, so a tampered form cannot write arbitrary
      JSON into a column the generator reads. */
   const PARTS = [
     "crest", "branchName", "heading", "border", "certifyLine", "statement",
     "theme", "units", "signatures", "qr", "serial", "verifyLine",
+    "watermark", "seal",
   ] as const;
 
   if (formData.has("partsSubmitted")) {
@@ -1532,4 +1564,91 @@ export async function clearAttendance(id: string) {
   revalidatePath("/admin");
   revalidatePath("/admin/attendance");
   return { ok: true, name: [r.firstName, r.surname].filter(Boolean).join(" "), removed: scans.length };
+}
+
+/* ---------- certificates ---------- */
+
+/**
+ * Issue and email certificates for a set of registrations.
+ *
+ * Called with a handful of ids at a time rather than the whole cohort. Each
+ * certificate is a PDF built and emailed one by one, and two hundred of those
+ * in a single request would pass Vercel's function timeout long before it
+ * finished — leaving the branch with no idea which half had gone out. Small
+ * batches mean the screen can show real progress and a failure costs one
+ * batch, not the run.
+ *
+ * Safe to run again. A serial already minted is reused, never replaced, so
+ * re-running after a timeout re-sends rather than renumbering.
+ */
+type CertificateRun =
+  | { ok?: undefined; error: string }
+  | {
+      ok: true;
+      error?: undefined;
+      done: { id: string; name: string; serial: string; emailed: boolean }[];
+      failed: { id: string; name: string; reason: string }[];
+    };
+
+export async function generateCertificates(
+  ids: string[],
+  allowUnattended = false,
+): Promise<CertificateRun> {
+  const officer = await requireOfficer();
+
+  const wanted = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 25);
+  if (wanted.length === 0) return { error: "No participants selected." };
+
+  const origin = await publicUrl();
+
+  const done: { id: string; name: string; serial: string; emailed: boolean }[] = [];
+  const failed: { id: string; name: string; reason: string }[] = [];
+
+  for (const id of wanted) {
+    try {
+      const res = await issueCertificate(id, origin, { skipAttendanceCheck: allowUnattended });
+
+      if (!res.ok) {
+        failed.push({
+          id,
+          name: res.name ?? "Unknown",
+          reason:
+            res.reason === "not-attended"
+              ? "No attendance recorded"
+              : res.reason === "not-confirmed"
+              ? "Payment not confirmed"
+              : "Registration not found",
+        });
+        continue;
+      }
+
+      const emailed = await sendCertificateEmail({
+        to: res.email,
+        name: res.name,
+        eventTitle: res.eventTitle,
+        serial: res.serial,
+        filename: res.filename,
+        pdf: res.pdf,
+      });
+
+      done.push({ id, name: res.name, serial: res.serial, emailed });
+    } catch (e) {
+      /* One bad row must not take the batch with it. The officer gets a named
+         failure they can retry rather than a dead screen. */
+      failed.push({ id, name: "Unknown", reason: e instanceof Error ? e.message : "Unexpected error" });
+    }
+  }
+
+  if (done.length > 0) {
+    await audit(officer.id, "issue_certificates", "certificates", done[0].id, {
+      issued: done.length,
+      emailed: done.filter((d) => d.emailed).length,
+      overrode_attendance: allowUnattended || undefined,
+      serials: done.map((d) => d.serial).join(", ").slice(0, 400),
+    });
+  }
+
+  revalidatePath("/admin/certificates");
+  revalidatePath("/admin");
+  return { ok: true, done, failed };
 }

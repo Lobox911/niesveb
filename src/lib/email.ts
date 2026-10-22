@@ -15,7 +15,9 @@ const KEY = process.env.RESEND_API_KEY || "";
 
 export const emailEnabled = () => Boolean(KEY && FROM);
 
-async function send(to: string, subject: string, html: string) {
+type Attachment = { filename: string; content: Uint8Array };
+
+async function send(to: string, subject: string, html: string, attachments?: Attachment[]) {
   if (!emailEnabled()) {
     console.warn(`[email] skipped "${subject}" to ${to} — RESEND_API_KEY or MAIL_FROM not set`);
     return false;
@@ -28,7 +30,20 @@ async function send(to: string, subject: string, html: string) {
         Authorization: `Bearer ${KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from: FROM, to, subject, html }),
+      body: JSON.stringify({
+        from: FROM, to, subject, html,
+        /* Resend takes attachment bytes as base64. Buffer rather than a manual
+           btoa: the PDF is binary and btoa needs a latin1 string, which is an
+           easy way to corrupt a file that then opens as a blank page. */
+        ...(attachments?.length
+          ? {
+              attachments: attachments.map((a) => ({
+                filename: a.filename,
+                content: Buffer.from(a.content).toString("base64"),
+              })),
+            }
+          : {}),
+      }),
     });
     if (!res.ok) {
       console.error("[email] failed", res.status, await res.text());
@@ -278,4 +293,41 @@ export async function sendRejectedEmail(opts: {
 this and your code will be issued once the payment is confirmed.</p>
 ${branch.contactPhones.length ? `<p><strong>${branch.contactPhones.join(" · ")}</strong>${branch.contactEmail ? `<br>${branch.contactEmail}` : ""}</p>` : ""}`;
   return send(opts.to, `Payment could not be confirmed — ${opts.eventTitle}`, wrap(branch, body));
+}
+
+
+/**
+ * The certificate itself, attached.
+ *
+ * Attached rather than linked. A link needs the participant to still have
+ * their passcode and the site to still be up when their employer's CPD
+ * officer asks for proof, which may be a year from now; a PDF in their inbox
+ * forwards in one tap and outlives both.
+ */
+export async function sendCertificateEmail(opts: {
+  to: string;
+  name: string;
+  eventTitle: string;
+  serial: string;
+  filename: string;
+  pdf: Uint8Array;
+}) {
+  const branch = await getBranch();
+
+  const body = `
+<p>Dear ${opts.name},</p>
+<p>Your certificate for the <strong>${opts.eventTitle}</strong> is attached.</p>
+<p style="background:#F7F8F6;border-left:2px solid #0B6E4F;padding:12px 16px">
+Certificate number<br>
+<span style="font-family:ui-monospace,monospace;font-size:17px;letter-spacing:1px">${opts.serial}</span>
+</p>
+<p>Keep the attached PDF. It is the copy to send to your firm or to NIESV when
+asked for proof of attendance.</p>`;
+
+  return send(
+    opts.to,
+    `Your certificate — ${opts.eventTitle}`,
+    wrap(branch, body),
+    [{ filename: opts.filename, content: opts.pdf }],
+  );
 }

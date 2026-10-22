@@ -149,6 +149,15 @@ export default async function SitePage() {
           certificateStatement={s?.certificateStatement ?? ""}
           certificateParts={s?.certificateParts ?? ""}
           certificateExtraLines={s?.certificateExtraLines ?? ""}
+          chairmanPostNominals={s?.chairmanPostNominals ?? ""}
+          secretaryPostNominals={s?.secretaryPostNominals ?? ""}
+          esvarbonUrl={s?.esvarbonUrl ?? null}
+          certificateWatermarkUrl={s?.certificateWatermarkUrl ?? null}
+          certificatePrimary={s?.certificatePrimary ?? "#001E4C"}
+          certificateAccent={s?.certificateAccent ?? "#EA0411"}
+          certificateWatermark={s?.certificateWatermark ?? 5}
+          certificateHeading={s?.certificateHeading ?? "Certificate of Participation"}
+          institutionName={s?.institutionName ?? "Nigerian Institution of Estate Surveyors and Valuers"}
         />
       </div>
       </TabbedSections>

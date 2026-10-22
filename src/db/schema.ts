@@ -103,6 +103,43 @@ export const branchSettings = pgTable("branch_settings", {
   certificateBackgroundUrl: text("certificate_background_url"),
   certificateBackgroundPath: text("certificate_background_path"),
 
+  /* The second crest, printed top right. ESVARBON on an MCPD certificate,
+     because the seminar is approved by the registration board and the board's
+     mark is what says so. */
+  esvarbonUrl: text("esvarbon_url"),
+  esvarbonPath: text("esvarbon_path"),
+
+  /* The image printed faintly behind the text. Its own field rather than
+     reusing the branch crest: they are usually the same picture but not
+     always, and a branch wanting a different watermark had no way to say so
+     without changing the crest at the top of the certificate too. Empty falls
+     back to the branch crest. */
+  certificateWatermarkUrl: text("certificate_watermark_url"),
+  certificateWatermarkPath: text("certificate_watermark_path"),
+
+  /* The certificate has its own two colours rather than borrowing the site's.
+     The website is green and gold; the certificate follows the seminar banner,
+     navy and red. Sharing one pair would mean repainting the whole site to
+     change the certificate. */
+  certificatePrimary: text("certificate_primary").notNull().default("#001E4C"),
+  certificateAccent: text("certificate_accent").notNull().default("#EA0411"),
+
+  /* 0-100. The crest printed faintly behind the text. Low by design: a
+     watermark that looks elegant on a laptop comes out as grey mud on a tired
+     office printer, and members print these. */
+  certificateWatermark: integer("certificate_watermark").notNull().default(5),
+
+  /* Branches differ: some issue "of Participation", some "of Attendance". */
+  certificateHeading: text("certificate_heading").default("Certificate of Participation"),
+  institutionName: text("institution_name").default("Nigerian Institution of Estate Surveyors and Valuers"),
+
+  /* Letters after the name. Kept separate from the name so they can be set in
+     the smaller face the certificates use, and omitted entirely when the
+     branch has not supplied them — an invented qualification on a
+     professional certificate is not a small error. */
+  chairmanPostNominals: text("chairman_post_nominals"),
+  secretaryPostNominals: text("secretary_post_nominals"),
+
   /* Prefixes the serial, e.g. NIESV-EB. Serials are permanent — they are
      printed on certificates already in circulation — so changing this only
      affects ones issued afterwards. */

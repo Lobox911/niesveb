@@ -6,6 +6,9 @@ const NAV: [string, string, boolean][] = [
   // [href, label, adminOnly]
   ["/admin", "Dashboard", false],
   ["/admin/attendance", "Attendance desk", false],
+  // Issuing certificates commits the branch's name to a document; officers
+  // run the desk, administrators sign off what goes out under it.
+  ["/admin/certificates", "Certificates", true],
   ["/admin/events", "Events", true],
   ["/admin/pages", "Pages", true],
   ["/admin/site", "Site settings", true],

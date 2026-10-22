@@ -24,7 +24,9 @@ const PARTS: { key: string; label: string; help: string }[] = [
   { key: "signatures", label: "Signature block", help: "Names, roles and signature images." },
   { key: "qr", label: "QR code", help: "Scanning it opens the verification page. Removing it makes the certificate harder to check." },
   { key: "serial", label: "Serial number", help: "Still issued and recorded even when it is not printed." },
-  { key: "verifyLine", label: "“Verify at …” line", help: "The web address under the QR code." },
+  { key: "verifyLine", label: "“Verify at …” line", help: "The web address in the footer, beside the QR code." },
+  { key: "watermark", label: "Crest watermark", help: "The crest printed very faintly behind the text. Its strength is set below." },
+  { key: "seal", label: "Seal", help: "The round mark between the two signatures." },
 ];
 
 const PLACES: { value: Line["place"]; label: string }[] = [
@@ -40,14 +42,26 @@ export default function CertificateSettings({
   secretaryName, secretaryTitle, secretarySignatureUrl,
   certificateBackgroundUrl, certificateSerialPrefix, certificateStatement,
   certificateParts, certificateExtraLines,
+  chairmanPostNominals, secretaryPostNominals,
+  esvarbonUrl, certificateWatermarkUrl,
+  certificatePrimary, certificateAccent, certificateWatermark,
+  certificateHeading, institutionName,
 }: {
   chairmanName: string; chairmanTitle: string; chairmanSignatureUrl: string | null;
   secretaryName: string; secretaryTitle: string; secretarySignatureUrl: string | null;
+  chairmanPostNominals: string; secretaryPostNominals: string;
   certificateBackgroundUrl: string | null;
   certificateSerialPrefix: string;
   certificateStatement: string;
   certificateParts: string;
   certificateExtraLines: string;
+  esvarbonUrl: string | null;
+  certificateWatermarkUrl: string | null;
+  certificatePrimary: string;
+  certificateAccent: string;
+  certificateWatermark: number;
+  certificateHeading: string;
+  institutionName: string;
 }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
@@ -99,10 +113,19 @@ export default function CertificateSettings({
           chairmanTitle: text("chairmanTitle"),
           secretaryName: text("secretaryName"),
           secretaryTitle: text("secretaryTitle"),
+          chairmanPostNominals: text("chairmanPostNominals"),
+          secretaryPostNominals: text("secretaryPostNominals"),
+          heading: text("certificateHeading"),
+          institutionName: text("institutionName"),
+          primaryHex: text("certificatePrimary"),
+          accentHex: text("certificateAccent"),
+          watermark: Number(text("certificateWatermark") || 5),
           serialPrefix: text("certificateSerialPrefix"),
           ...(removed.certificateBackgroundUrl ? { backgroundUrl: null } : {}),
           ...(removed.chairmanSignatureUrl ? { chairmanSignatureUrl: null } : {}),
           ...(removed.secretarySignatureUrl ? { secretarySignatureUrl: null } : {}),
+          ...(removed.esvarbonUrl ? { esvarbonUrl: null } : {}),
+          ...(removed.certificateWatermarkUrl ? { watermarkUrl: null } : {}),
         }),
       });
       if (!res.ok) return;
@@ -223,7 +246,16 @@ export default function CertificateSettings({
                 <div>
                   <label className="label" htmlFor="chairmanTitle">Role as printed</label>
                   <input id="chairmanTitle" name="chairmanTitle" className="field"
-                    defaultValue={chairmanTitle} placeholder="Chairman" />
+                    defaultValue={chairmanTitle} placeholder="Chairman, Ebonyi State Branch" />
+                </div>
+                <div>
+                  <label className="label" htmlFor="chairmanPostNominals">Letters after the name</label>
+                  <input id="chairmanPostNominals" name="chairmanPostNominals" className="field"
+                    defaultValue={chairmanPostNominals} placeholder="MNIVS, RSV" />
+                  <p className="help">
+                    Leave blank if you are not certain of them. Nothing is
+                    printed rather than a guess.
+                  </p>
                 </div>
                 <Removable
                   field="chairmanSignatureUrl"
@@ -245,7 +277,12 @@ export default function CertificateSettings({
                 <div>
                   <label className="label" htmlFor="secretaryTitle">Role as printed</label>
                   <input id="secretaryTitle" name="secretaryTitle" className="field"
-                    defaultValue={secretaryTitle} placeholder="Secretary" />
+                    defaultValue={secretaryTitle} placeholder="National MCPD Chairman" />
+                </div>
+                <div>
+                  <label className="label" htmlFor="secretaryPostNominals">Letters after the name</label>
+                  <input id="secretaryPostNominals" name="secretaryPostNominals" className="field"
+                    defaultValue={secretaryPostNominals} placeholder="FNIVS, RSV, MIRWA" />
                 </div>
                 <Removable
                   field="secretarySignatureUrl"
@@ -377,6 +414,55 @@ export default function CertificateSettings({
               </div>
 
               <div>
+                <label className="label" htmlFor="certificateHeading">Heading</label>
+                <input id="certificateHeading" name="certificateHeading" className="field"
+                  defaultValue={certificateHeading} placeholder="Certificate of Participation" />
+                <p className="help">
+                  Branches differ — some issue &ldquo;of Participation&rdquo;,
+                  some &ldquo;of Attendance&rdquo;.
+                </p>
+              </div>
+
+              <div>
+                <label className="label" htmlFor="institutionName">Institution name</label>
+                <input id="institutionName" name="institutionName" className="field"
+                  defaultValue={institutionName} />
+                <p className="help">The line across the top, above the branch name.</p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="certificatePrimary">Main colour</label>
+                  <input id="certificatePrimary" name="certificatePrimary" className="field-mono"
+                    defaultValue={certificatePrimary} placeholder="#001E4C" />
+                  <p className="help">Border, headings and the participant&rsquo;s name.</p>
+                </div>
+                <div>
+                  <label className="label" htmlFor="certificateAccent">Accent colour</label>
+                  <input id="certificateAccent" name="certificateAccent" className="field-mono"
+                    defaultValue={certificateAccent} placeholder="#EA0411" />
+                  <p className="help">The title, theme, roles and seal.</p>
+                </div>
+              </div>
+              <p className="help">
+                Separate from the website&rsquo;s colours on purpose. The site is
+                green; the certificate follows the seminar banner.
+              </p>
+
+              <div>
+                <label className="label" htmlFor="certificateWatermark">
+                  Watermark strength
+                </label>
+                <input id="certificateWatermark" name="certificateWatermark" type="number"
+                  min={0} max={40} className="field-mono w-[120px]"
+                  defaultValue={certificateWatermark} />
+                <p className="help">
+                  0 to 40. Five is about right. Members print these on office
+                  printers, and anything stronger comes out muddy.
+                </p>
+              </div>
+
+              <div>
                 <label className="label" htmlFor="certificateSerialPrefix">Serial prefix</label>
                 <input id="certificateSerialPrefix" name="certificateSerialPrefix" className="field-mono"
                   defaultValue={certificateSerialPrefix} placeholder="NIESV-EB" />
@@ -391,10 +477,40 @@ export default function CertificateSettings({
 
           <fieldset className="card mt-6 p-6">
             <legend className="mono px-2 text-[12px] uppercase tracking-wider text-muted">Artwork</legend>
+
+            <p className="help mb-5">
+              Three separate images. The branch crest at the top left comes
+              from Site settings &rarr; Crest.
+            </p>
+
+            <Removable
+              field="esvarbonUrl"
+              url={esvarbonUrl}
+              label="ESVARBON crest — top right"
+              help="Printed opposite the branch crest. One is built in, so leave this empty unless the board issues a new mark."
+              accept="image/png,image/jpeg,image/webp"
+              folder="brand"
+              maxMb={4}
+            />
+
+            <div className="my-6 border-t border-line" />
+
+            <Removable
+              field="certificateWatermarkUrl"
+              url={certificateWatermarkUrl}
+              label="Watermark — faint, behind the text"
+              help="Leave empty to use the branch crest. Its strength is the “Watermark strength” setting above; this only changes which picture is used."
+              accept="image/png,image/jpeg,image/webp"
+              folder="brand"
+              maxMb={4}
+            />
+
+            <div className="my-6 border-t border-line" />
+
             <Removable
               field="certificateBackgroundUrl"
               url={certificateBackgroundUrl}
-              label="Certificate artwork"
+              label="Full-page artwork — replaces the whole design"
               folder="certificate"
               maxMb={8}
               accept="image/png,image/jpeg"

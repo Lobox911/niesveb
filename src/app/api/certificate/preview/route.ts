@@ -1,6 +1,9 @@
-import { db, branchSettings } from "@/db";
+import { desc, eq } from "drizzle-orm";
+import { db, branchSettings, events, categories } from "@/db";
 import { requireOfficer } from "@/lib/auth";
 import { buildCertificate, type CertificateParts, type ExtraLine } from "@/lib/certificate";
+import { dateRange } from "@/lib/site";
+import { bundledEsvarbon } from "@/lib/brand-assets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +51,15 @@ export async function POST(request: Request) {
     backgroundUrl?: string | null;
     chairmanSignatureUrl?: string | null;
     secretarySignatureUrl?: string | null;
+    esvarbonUrl?: string | null;
+    watermarkUrl?: string | null;
+    chairmanPostNominals?: string;
+    secretaryPostNominals?: string;
+    heading?: string;
+    institutionName?: string;
+    primaryHex?: string;
+    accentHex?: string;
+    watermark?: number;
   };
   try {
     body = await request.json();
@@ -62,8 +74,14 @@ export async function POST(request: Request) {
   const pick = (draft: string | null | undefined, saved: string | null | undefined) =>
     draft === undefined ? (saved ?? null) : draft;
 
-  const [crest, background, chairSig, secSig] = await Promise.all([
+  /* The same fallback the issuing route uses. Without it the preview showed
+     an empty top right while a real certificate printed the crest. */
+  const esvarbon = pick(body.esvarbonUrl, settings?.esvarbonUrl);
+
+  const [crest, secondCrest, watermark, background, chairSig, secSig] = await Promise.all([
     fetchImage(settings?.logoUrl ?? null),
+    esvarbon ? fetchImage(esvarbon) : Promise.resolve(bundledEsvarbon()),
+    fetchImage(pick(body.watermarkUrl, settings?.certificateWatermarkUrl)),
     fetchImage(pick(body.backgroundUrl, settings?.certificateBackgroundUrl)),
     fetchImage(pick(body.chairmanSignatureUrl, settings?.chairmanSignatureUrl)),
     fetchImage(pick(body.secretarySignatureUrl, settings?.secretarySignatureUrl)),
@@ -73,28 +91,49 @@ export async function POST(request: Request) {
     .replace(/[^A-Za-z0-9-]/g, "")
     .toUpperCase();
 
+  /* The sample is drawn from the real event rather than invented, so the
+     preview shows the theme and venue that will actually print. Checking a
+     layout against made-up text proves less than it looks like it does —
+     a theme two words long wraps differently from the real one. */
+  const ev =
+    (await db.select().from(events).where(eq(events.isFeatured, true)).limit(1))[0]
+    ?? (await db.select().from(events).orderBy(desc(events.startsAt)).limit(1))[0];
+
+  const cat = ev
+    ? (await db.select({ name: categories.name, units: categories.units })
+        .from(categories).where(eq(categories.eventId, ev.id)).limit(1))[0]
+    : undefined;
+
   const pdf = await buildCertificate({
-    name: "Esv. Chinedu Obiageli Okafor",
-    category: "Members",
-    units: 12,
+    name: "Esv. Anyanwu Jonathan",
+    category: cat?.name ?? "Members",
+    units: cat?.units ?? 3,
     // Obviously a sample, so nobody mistakes a preview for a real certificate.
     serial: `${prefix}/${new Date().getFullYear()}/SAMPLE`,
     issuedAt: new Date(),
-    eventTitle: "2026 MCPD Seminar",
-    eventTheme: "Valuation in a Volatile Economy",
-    eventDate: "25-26 March 2026",
-    venue: "Cititrust Hotel, Abakaliki",
+    eventTitle: ev?.title ?? "MCPD Seminar",
+    eventTheme: ev?.theme ?? "",
+    eventDate: ev ? dateRange(ev.startsAt, ev.endsAt) : "",
+    venue: ev?.venue ?? "",
     branchName: settings?.branchName || "NIESV Ebonyi State Branch",
     statement: body.statement?.trim() || settings?.certificateStatement || DEFAULT_STATEMENT,
+    institutionName: body.institutionName || settings?.institutionName
+      || "Nigerian Institution of Estate Surveyors and Valuers",
+    headingText: body.heading || settings?.certificateHeading || "Certificate of Participation",
     chairmanName: body.chairmanName ?? settings?.chairmanName ?? "",
     chairmanTitle: body.chairmanTitle ?? settings?.chairmanTitle ?? "Chairman",
+    chairmanPostNominals: body.chairmanPostNominals ?? settings?.chairmanPostNominals ?? "",
     secretaryName: body.secretaryName ?? settings?.secretaryName ?? "",
     secretaryTitle: body.secretaryTitle ?? settings?.secretaryTitle ?? "Secretary",
+    secretaryPostNominals: body.secretaryPostNominals ?? settings?.secretaryPostNominals ?? "",
     verifyUrl: `${settings?.canonicalUrl || new URL(request.url).origin}/verify/sample`,
     verifyLabel: `${(settings?.canonicalUrl || new URL(request.url).origin).replace(/^https?:\/\//, "")}/verify`,
-    primaryHex: settings?.primaryColor || "#0B6E4F",
-    accentHex: settings?.accentColor || "#B08A2E",
+    primaryHex: body.primaryHex || settings?.certificatePrimary || "#001E4C",
+    accentHex: body.accentHex || settings?.certificateAccent || "#EA0411",
+    watermarkOpacity: (body.watermark ?? settings?.certificateWatermark ?? 5) / 100,
     crest: crest?.bytes, crestType: crest?.type,
+    secondCrest: secondCrest?.bytes, secondCrestType: secondCrest?.type,
+    watermark: watermark?.bytes, watermarkType: watermark?.type,
     background: background?.bytes, backgroundType: background?.type,
     chairmanSignature: chairSig?.bytes, chairmanSignatureType: chairSig?.type,
     secretarySignature: secSig?.bytes, secretarySignatureType: secSig?.type,
